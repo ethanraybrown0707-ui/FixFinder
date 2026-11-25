@@ -53,6 +53,7 @@ public static partial class AbstractChecks
                 Locals = locals,
                 DeclaredTypes = DeclaredTypes(function),
                 OwnTypes = ownTypes,
+                References = References.Of(function, program.Language),
                 CallReturns = call => targets.Resolve(call, function, locals) is { Overridable: false } target && summaries.TryGetValue(target.Function, out var returned)
                     ? returned
                     : null,
@@ -113,6 +114,17 @@ public static partial class AbstractChecks
             functions.Select(f => (f.Function, f.Graph, f.Evaluator.Locals ?? (IReadOnlySet<string>)new HashSet<string>())), targets, program.Language, source,
             "following every way through each function, and the calls it makes"));
 
+        findings.AddRange(OverwrittenBeforeRead.Find(program,
+            functions.Select(f => (f.Function, f.Graph, f.Evaluator.Locals ?? (IReadOnlySet<string>)new HashSet<string>())),
+            source, "following each value a variable is given to where it is read"));
+
+        findings.AddRange(FlagNeverSet.Find(program, functions.Select(f => f.Function), source,
+            "following each flag from where it is set to where it is tested"));
+
+        findings.AddRange(CountOutOfStep.Find(program, "comparing what each of a class's methods does to its fields"));
+
+        findings.AddRange(SameAnswerAlways.Find(program, functions.Select(f => f.Function), "reading every answer a yes-or-no function gives back"));
+
         findings.AddRange(new Concurrency(program, source).Check());
         findings.AddRange(new Taint(program, targets).Check());
         findings.AddRange(PerformanceChecks.Run(program, source));
@@ -172,6 +184,7 @@ public static partial class AbstractChecks
                 CallReturns = evaluator.CallReturns,
                 DeclaredTypes = evaluator.DeclaredTypes,
                 OwnTypes = evaluator.OwnTypes,
+                References = evaluator.References,
             };
 
             new FunctionChecks(graph, Fixpoint.Run(graph, following, StartOf(function, following)), following, source, [], targets, effects, contractsOf)
@@ -354,7 +367,8 @@ public static partial class AbstractChecks
     }
 
     /// <summary>Each variable's declared type, where it is declared once with one type.</summary>
-    private static Dictionary<string, IrType> DeclaredTypes(IrFunction function) =>
+    /// <summary>The type each name of a function is declared with, when it is declared with only one.</summary>
+    internal static Dictionary<string, IrType> DeclaredTypes(IrFunction function) =>
         function.Parameters.Select(p => (p.Name, p.Type))
             .Concat(IrWalk.Statements(function.Body).OfType<Declare>().Select(d => (Name: d.Variable, d.Type)))
             .Where(d => !d.Type.IsUnknown)

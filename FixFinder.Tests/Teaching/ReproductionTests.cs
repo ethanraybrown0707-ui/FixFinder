@@ -108,6 +108,6 @@ public class ReproductionTests(ITestOutputHelper output) : IDisposable
         var stopped = Assert.Single(report.Findings, finding => finding.Line == 3);
         Assert.Equal("ZeroDivisionError", stopped.Error?.ShortExceptionType);
         Assert.Contains(FurtherExplanation.For(stopped).Reproduce,
-            ["Run share.py typing `12` then `0`, as FixFinder did - that run stopped here.", "Run the program, typing `12` then `0` - FixFinder did, and that run stopped here."]);
+            new[] { "Run share.py typing `12` then `0`, as FixFinder did - that run stopped here.", "Run the program, typing `12` then `0` - FixFinder did, and that run stopped here." });
     }
 }

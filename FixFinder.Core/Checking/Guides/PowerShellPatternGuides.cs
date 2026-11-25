@@ -211,6 +211,33 @@ internal static class PowerShellPatternGuides
             Write-Output $total
             """),
 
+        GuideFor(["logic-powershell-too-few-arguments"], "A function given fewer values than it takes",
+            "A function written with two parameters, function Add($a, $b), is meant to be given two values. Called with one, Add 1, " +
+            "PowerShell does not stop the script: it gives the parameter that got nothing $null, and the function carries on with " +
+            "it - 1 + $null is 1.",
+            "The function works with $null where a value was meant, and the script prints a wrong answer, with no error.",
+            "Give the function every value it takes, separated by spaces - or give the parameter a default: function Add($a, $b = 0).",
+            """
+            function Add($a, $b) {
+                return $a + $b
+            }
+
+            Write-Output (Add 1 2)
+            """),
+
+        GuideFor(["logic-powershell-float-equality"], "Decimal numbers compared exactly",
+            "Computers store fractions like 0.1 in binary, where most of them can only be stored approximately - the way 1/3 can " +
+            "only be written as 0.333... in decimal. Adding them leaves a tiny error, so 0.1 + 0.2 is 0.30000000000000004, and " +
+            "$total -eq 0.3 is False.",
+            "An exact comparison fails even when the numbers are equal for every practical purpose, so the code it guards never runs.",
+            "Check that the difference is smaller than a tiny tolerance, with [math]::Abs.",
+            """
+            $total = 0.1 + 0.2
+            if ([math]::Abs($total - 0.3) -lt 1e-9) {
+                Write-Output "equal"
+            }
+            """),
+
         GuideFor(["logic-powershell-odd-test-negative"], "An odd number looked for with % 2 -eq 1",
             "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
             "$n % 2 -eq 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",

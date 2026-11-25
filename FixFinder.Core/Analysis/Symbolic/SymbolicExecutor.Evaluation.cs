@@ -294,13 +294,13 @@ public sealed partial class SymbolicExecutor
     private static readonly Rational LongestCollection = new(long.MaxValue, 1);
 
     private bool Choose(Expr at, Expr test, Path path) =>
-        path.Choices.TryGetValue(at, out var chosen) ? chosen : Settle(at, Truth(test, path));
+        path.Choices.TryGetValue(at, out var chosen) ? chosen : Settle(at, Truth(test, path), test);
 
     private bool Choose(Expr at, Condition condition, Path path) =>
         path.Choices.TryGetValue(at, out var chosen) ? chosen : Settle(at, condition);
 
-    private static bool Settle(Expr at, Condition condition) =>
-        condition is Known known ? known.Value : throw new ChoiceNeeded(at, condition);
+    private static bool Settle(Expr at, Condition condition, Expr? test = null) =>
+        condition is Known known ? known.Value : throw new ChoiceNeeded(at, condition, test);
 
     private Condition Truth(Expr expression, Path path) => expression switch
     {
@@ -516,6 +516,9 @@ public sealed partial class SymbolicExecutor
 
     private void CheckDivision(Binary binary, SymNumber dividend, SymNumber divisor, Path path)
     {
+        // JavaScript divides by zero into Infinity, or NaN, and goes on: nothing fails there, as the abstract checks hold too.
+        if (_language == SourceLanguage.JavaScript) return;
+
         if (!IsPython && !(dividend.Whole && divisor.Whole))
         {
             OutcomeAt("analysis-division-by-zero", binary.Span, binary.Right).Unsure = true;

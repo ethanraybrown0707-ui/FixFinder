@@ -108,8 +108,9 @@ public sealed partial class ElixirNearestFunction : ILocalFixRule
 }
 
 /// <summary>
-/// "function Enum.summ/1 is undefined or private. Did you mean: * sum/1": Elixir's own suggestion - when it makes only one
-/// - for the call on the line it stopped at.
+/// "function Enum.summ/1 is undefined or private. Did you mean: * sum/1": Elixir's own suggestion - when it suggests only one
+/// function, as for IO.put, whose suggestions puts/1 and puts/2 are one function taking one value or two - for the call on
+/// the line it stopped at.
 /// </summary>
 public sealed partial class ElixirDidYouMeanFunction : ILocalFixRule
 {
@@ -124,11 +125,13 @@ public sealed partial class ElixirDidYouMeanFunction : ILocalFixRule
     public LocalFix? Propose(LocalFixContext context)
     {
         if (!ElixirCode.Is(context, "UndefinedFunctionError") || Message().Match(context.Error.Message ?? "") is not { Success: true } said) return null;
-        if (Suggestion().Matches(context.Error.RawText) is not [var suggested] || ElixirCode.Locate(context) is not { } at) return null;
+        var suggestedNames = Suggestion().Matches(context.Error.RawText).Select(suggested => suggested.Groups["name"].Value).Distinct().ToList();
+        if (suggestedNames is not [var right] || ElixirCode.Locate(context) is not { } at) return null;
 
+        // Its own name in another arity - add/2 for add(1) - is a call given the wrong number of values, not a misspelt name.
         var module = said.Groups["module"].Value;
         var wrong = said.Groups["name"].Value;
-        var right = suggested.Groups["name"].Value;
+        if (right == wrong) return null;
 
         if (new Regex($@"\b{Regex.Escape(module)}\.{Regex.Escape(wrong)}(?=\s*\()").Matches(ElixirCode.Masked(at.Line)) is not [var call]) return null;
 
@@ -578,5 +581,44 @@ public sealed partial class ElixirStringLength : ILocalFixRule
             "length counts the items of a list, and text in double quotes is not a list, so Elixir stops. String.length counts the " +
             "characters of text.",
             at.Source.Path, at.Number, at.Line[..length.Index] + "String." + at.Line[length.Index..]);
+    }
+}
+
+/// <summary>
+/// "missing terminator: )" for a call whose last value is a function written over several lines - Enum.each(marks, fn mark ->
+/// ... end - and whose ) never comes: it closes right after the end that closes the fn, on that end's own line.
+/// </summary>
+public sealed partial class ElixirCallLeftOpenAroundFn : ILocalFixRule
+{
+    public string Id => "elixir-call-left-open-around-fn";
+
+    [GeneratedRegex(@"\bfn\b[^>]*->\s*$")]
+    private static partial Regex OpensAFunction();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (!ElixirCode.Is(context, "TokenMissingError") || context.Error.Message != "missing terminator: )" || ElixirCode.Locate(context) is not { } at) return null;
+
+        var lines = at.Source.Lines;
+        var masked = CodeText.MaskAll(lines, Syntax.Python);
+
+        // The line above the error, or the error's own, that opens a ( it does not close and ends by opening a fn.
+        for (var opener = Math.Min(at.Number, masked.Count) - 1; opener >= 0; opener--)
+        {
+            var code = masked[opener];
+            if (!OpensAFunction().IsMatch(code) || code.Count(c => c == '(') - code.Count(c => c == ')') != 1) continue;
+
+            var indent = CodeText.Indentation(lines[opener]).Length;
+            var closing = Enumerable.Range(opener + 1, masked.Count - opener - 1)
+                .FirstOrDefault(index => masked[index].Trim().Length > 0 && CodeText.Indentation(lines[index]).Length <= indent, -1);
+            if (closing < 0 || masked[closing].Trim() != "end") return null;
+
+            return LocalFix.ReplaceLine(Id, $"Close the call on line {opener + 1} after its fn's end",
+                $"The ( on line {opener + 1} is still open when the file ends. Its last value is the fn that starts there, so the ) " +
+                "goes right after the end that closes the fn.",
+                at.Source.Path, closing + 1, lines[closing].TrimEnd() + ")");
+        }
+
+        return null;
     }
 }

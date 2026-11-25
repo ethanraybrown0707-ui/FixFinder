@@ -144,13 +144,27 @@ public static partial class DeadCodePatterns
         bool decorators = true)
     {
         var definitions = masked.Select((line, index) => (Index: index, Match: definition.Match(line))).Where(each => each.Match.Success).ToList();
-        foreach (var (first, firstMatch) in definitions)
+
+        // The next definition of the same name at the same indentation, for each - found from the end in one pass, as looking
+        // through every definition again for each one made a file of 50,000 lines take seconds here alone.
+        var nextOfTheSame = new (int Index, Match? Match)[definitions.Count];
+        var laterByName = new Dictionary<string, Dictionary<int, (int Index, Match Match)>>(StringComparer.FromComparison(comparison));
+        for (var at = definitions.Count - 1; at >= 0; at--)
         {
+            var (index, match) = definitions[at];
+            var indent = match.Groups["indent"].Length;
+            if (!laterByName.TryGetValue(match.Groups["name"].Value, out var laterByIndent)) laterByName[match.Groups["name"].Value] = laterByIndent = [];
+            nextOfTheSame[at] = laterByIndent.TryGetValue(indent, out var later) ? later : (0, null);
+            laterByIndent[indent] = (index, match);
+        }
+
+        for (var at = 0; at < definitions.Count; at++)
+        {
+            var (first, firstMatch) = definitions[at];
             var name = firstMatch.Groups["name"].Value;
             if (decorators && Decorated(masked, first)) continue;
 
-            var second = definitions.FirstOrDefault(each => each.Index > first && string.Equals(each.Match.Groups["name"].Value, name, comparison) &&
-                                                            each.Match.Groups["indent"].Length == firstMatch.Groups["indent"].Length);
+            var second = nextOfTheSame[at];
             if (second.Match is null || (decorators && Decorated(masked, second.Index)) || Holder(masked, second.Index) != Holder(masked, first)) continue;
 
             // Nothing between them at less indentation - they are in one block - and, unless every function is set up first, no use of the name.

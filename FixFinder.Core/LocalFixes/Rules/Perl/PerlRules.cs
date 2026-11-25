@@ -126,7 +126,9 @@ public sealed partial class PerlUndeclaredVariable : ILocalFixRule
 
         if (CodeText.Nearest(wrong, declared) is { } right)
         {
-            var place = Regex.Matches(masked[at.Number - 1], $@"{Regex.Escape(sigil)}{Regex.Escape(wrong)}(?!\w)");
+            // In the code, or - when the code has it nowhere - inside text, where Perl reads "$totl" as the variable too.
+            var used = new Regex($@"{Regex.Escape(sigil)}{Regex.Escape(wrong)}(?!\w)");
+            var place = used.Matches(masked[at.Number - 1]) is { Count: > 0 } inCode ? inCode : used.Matches(at.Line);
             if (place is [var only])
             {
                 return LocalFix.ReplaceLine(Id, $"Change {sigil}{wrong} to {sigil}{right}",
@@ -284,11 +286,16 @@ public sealed partial class PerlDivisionGuard : ILocalFixRule
 
 /// <summary>
 /// "Undefined subroutine &amp;main::averge called": no sub by that name - but when the file has one sub whose name is within two
-/// letters of it, the call is changed to that name.
+/// letters of it, the call is changed to that name; when it has none that close, Perl's own functions are compared too, for
+/// prnt("hi").
 /// </summary>
 public sealed partial class PerlNearestSub : ILocalFixRule
 {
     public string Id => "perl-nearest-sub";
+
+    /// <summary>The functions Perl has without a module, that a call is most likely to have meant.</summary>
+    private static readonly string[] PerlFunctions =
+        ["print", "printf", "push", "pop", "shift", "unshift", "split", "join", "sort", "reverse", "keys", "values", "length", "substr", "sprintf", "chomp", "die", "warn"];
 
     [GeneratedRegex(@"^Undefined subroutine &(?:main::)?(?<name>\w+) called$")]
     private static partial Regex Message();
@@ -302,10 +309,12 @@ public sealed partial class PerlNearestSub : ILocalFixRule
 
         var wrong = said.Groups["name"].Value;
         var subs = SubDeclaration().Matches(string.Join("\n", CodeText.MaskAll(at.Source.Lines, Syntax.Perl))).Select(sub => sub.Groups["name"].Value);
-        if (CodeText.Nearest(wrong, subs) is not { } right || CodeText.ReplaceWord(at.Line, wrong, right, Syntax.Perl) is not { } corrected) return null;
+        var ownSub = CodeText.Nearest(wrong, subs);
+        if ((ownSub ?? CodeText.Nearest(wrong, PerlFunctions)) is not { } right || CodeText.ReplaceWord(at.Line, wrong, right, Syntax.Perl) is not { } corrected) return null;
 
         return LocalFix.ReplaceLine(Id, $"Change {wrong} to {right}",
-            $"There is no sub called {wrong}, so Perl stopped when the line called it. {right}, a letter or two apart, is the sub the file has.",
+            $"There is no sub called {wrong}, so Perl stopped when the line called it. {right}, a letter or two apart, is " +
+            (ownSub is not null ? "the sub the file has." : "one of Perl's own functions."),
             at.Source.Path, at.Number, corrected);
     }
 }

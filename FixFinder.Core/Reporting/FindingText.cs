@@ -36,9 +36,39 @@ public static class FindingText
         ? $"in cell {place.Cell} on line {place.Line}"
         : $"on line {finding.Line}";
 
+    /// <summary>What the finding follows from, said as surely as the link between them is known.</summary>
+    public static string Follows(Finding cause, Finding follower) => follower.CausedBy?.Kind == RelationKind.RemovedByItsFix
+        ? $"Fixing the problem {Where(cause)} removes this one too: with that fix made, in a copy, the file was read again and this was no longer found."
+        : Follows(cause);
+
     public static string Follows(Finding cause) => $"Follows from the problem {Where(cause)} - fixing that one should remove this.";
 
-    public static string Explains(IReadOnlyList<Finding> consequences) => consequences.Count switch
+    /// <summary>
+    /// What fixing this finding removes as well: first those a reading of the file with its fix made no longer found, then
+    /// those that only look like consequences of it.
+    /// </summary>
+    public static string Explains(IReadOnlyList<Finding> consequences)
+    {
+        var removedByTheFix = consequences.Where(consequence => consequence.CausedBy?.Kind == RelationKind.RemovedByItsFix).ToList();
+        var lookLikeConsequences = consequences.Where(consequence => consequence.CausedBy?.Kind != RelationKind.RemovedByItsFix).ToList();
+
+        var removedSentence = removedByTheFix.Count == 0 ? ""
+            : $"Its fix removes {Problems(removedByTheFix)} too: with the fix made, in a copy, the file was read again and " +
+              (removedByTheFix.Count == 1 ? "that problem was no longer found." : "those problems were no longer found.");
+
+        return string.Join(" ", new[] { removedSentence, LookLikeConsequences(lookLikeConsequences) }.Where(sentence => sentence.Length > 0));
+    }
+
+    /// <summary>The problems named by where they are: "the problem on line 12", "the problems on lines 12 and 15".</summary>
+    private static string Problems(IReadOnlyList<Finding> problems) => problems.Count switch
+    {
+        1 => $"the problem {Where(problems[0])}",
+        _ when problems.All(problem => problem.InNotebook is null) =>
+            $"the problems on lines {string.Join(", ", problems.SkipLast(1).Select(problem => problem.Line))} and {problems[^1].Line}",
+        _ => $"the problems {string.Join(", ", problems.SkipLast(1).Select(Where))} and {Where(problems[^1])}",
+    };
+
+    private static string LookLikeConsequences(IReadOnlyList<Finding> consequences) => consequences.Count switch
     {
         0 => "",
         1 => $"The problem {Where(consequences[0])} looks like a consequence of this one, so fixing this may remove it too.",
@@ -59,6 +89,14 @@ public static class FindingText
     public static string StateHeading(Finding finding) => finding.State is not { } state ? ""
         : finding.InNotebook is { } place ? $"What line {state.Line} of cell {place.Cell} did, each time it ran"
         : $"What line {state.Line} did, each time it ran";
+
+    /// <summary>What the variable timeline is, said above it.</summary>
+    public const string TimelineIntroduction =
+        "What each variable held where the program stopped, and the line that gave it each value - recorded by a second run of the program.";
+
+    /// <summary>The variable whose timeline is shown first: the one the program stopped on, when it is in the timeline.</summary>
+    public static string? TimelineShownFirst(Finding finding) =>
+        finding.RootCause is { } cause && finding.Timeline.Any(variable => variable.Name == cause.Name) ? cause.Name : finding.Timeline.FirstOrDefault()?.Name;
 
     public static string? FurtherReading(Finding finding) =>
         finding.FurtherReading is { } reading ? $"Search {reading.SiteName} for {reading.Term}" : null;

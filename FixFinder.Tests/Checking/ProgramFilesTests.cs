@@ -64,6 +64,41 @@ public class ProgramFilesTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(252 - ProgramFiles.MostFiles, found.LeftOut);
     }
 
+    /// <summary>
+    /// A module named only by from stats import average, with a line of code straight after it: the names an import takes
+    /// were read on over the line's end - average, then result - and stats/average.py was left out of the program; in
+    /// brackets they still run over lines, to the closing one.
+    /// </summary>
+    [Fact]
+    public void AModuleFromAPackageIsFoundWhateverTheLineAfterItsImportSays()
+    {
+        var main = Write(@"marks\main.py", "from stats import average\nresult = average.mean([72, 58])\nfrom stats import (\n    spread,\n)\nprint(result, spread.width([72, 58]))\n");
+        Write(@"marks\stats\__init__.py", "");
+        var average = Write(@"marks\stats\average.py", "def mean(marks):\n    return sum(marks) / len(marks)\n");
+        var spread = Write(@"marks\stats\spread.py", "def width(marks):\n    return max(marks) - min(marks)\n");
+
+        var files = ProgramFiles.Read(main).Files;
+
+        Assert.Contains(average, files, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains(spread, files, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Imports one under another, as a program's first lines often are: the names of the first were read on over the
+    /// lines after it, which hold only words and spaces, so the from ... imports on them were never read as imports, and
+    /// grades.py, report.py and the stats package were left out of the program.
+    /// </summary>
+    [Fact]
+    public void EachOfSeveralFromImportsInARowIsFollowed()
+    {
+        var main = Write(@"marks\main.py", "from collections import deque\nfrom grades import letter\nfrom report import show\nfrom stats import (\n    mean,\n)\n\nshow(letter(mean(deque([72, 58]))))\n");
+        var grades = Write(@"marks\grades.py", "def letter(mark):\n    return 'A' if mark >= 70 else 'B'\n");
+        var report = Write(@"marks\report.py", "def show(text):\n    print(text)\n");
+        var stats = Write(@"marks\stats.py", "def mean(marks):\n    return sum(marks) / len(marks)\n");
+
+        Assert.Equal([main, grades, report, stats], ProgramFiles.Read(main).Files, StringComparer.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void APythonProgramsImportsAreCountedThoughNotAllAreRead()
     {

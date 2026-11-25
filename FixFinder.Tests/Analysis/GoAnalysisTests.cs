@@ -66,6 +66,57 @@ public class GoAnalysisTests(ITestOutputHelper output) : IDisposable
         output.WriteLine(IrText.Of(FixFinder.Core.Analysis.Flow.CfgBuilder.Build(average)));
     }
 
+    /// <summary>
+    /// A shortest-path search that takes the nearest place not yet done each round; it prints 0 3 1 4. done[node] after
+    /// the search fails only if every done[i] is true, which four rounds over four places never make so; FixFinder does not
+    /// follow what done holds by then, so that is said as possible, never as a failure on one way through the code.
+    /// </summary>
+    [Fact]
+    public async Task ASearchThatCanFindNothingOnlyIfItsOwnSliceSaysSoIsSaidAsPossible()
+    {
+        const string code = """
+            package main
+
+            import "fmt"
+
+            type edge struct {
+            	to     int
+            	length int
+            }
+
+            func main() {
+            	const inf = 1000000000
+            	graph := [][]edge{{{1, 4}, {2, 1}}, {{3, 1}}, {{1, 2}, {3, 5}}, {}}
+            	dist := []int{0, inf, inf, inf}
+            	done := make([]bool, 4)
+            	for round := 0; round < 4; round++ {
+            		node := -1
+            		for i := 0; i < 4; i++ {
+            			if !done[i] && (node < 0 || dist[i] < dist[node]) {
+            				node = i
+            			}
+            		}
+            		done[node] = true
+            		for _, e := range graph[node] {
+            			if dist[node]+e.length < dist[e.to] {
+            				dist[e.to] = dist[node] + e.length
+            			}
+            		}
+            	}
+            	fmt.Println(dist)
+            }
+            """;
+
+        if (await CheckAsync(code) is not { } read) return;
+
+        Assert.DoesNotContain(read.Findings, f => f.CheckId == "analysis-always-true");
+        var finding = Assert.Single(read.Findings, f => f.CheckId == "analysis-index-out-of-range");
+        Assert.Equal(22, finding.Span.Line);
+        Assert.Equal(Confidence.Possible, finding.Confidence);
+        Assert.Equal("`node` is outside the list when `done[i]` is true every time it is tested, so `done[node]` fails with a panic - " +
+            "index out of range - FixFinder cannot tell what `done` holds by then, so this may never happen", finding.Message);
+    }
+
     [Fact]
     public async Task DividingByACountThatCanBeZeroIsFound()
     {
@@ -337,5 +388,57 @@ public class GoAnalysisTests(ITestOutputHelper output) : IDisposable
         if (await CheckAsync(code) is not { } read) return;
 
         Assert.Empty(read.Findings);
+    }
+
+    /// <summary>
+    /// Each function's variables are its own: three functions with a parameter named value each keep the name value, where
+    /// the reader gave the second value' and the third value'' - and the 1,000th function value and 999 primes, which made
+    /// a file of 50,000 lines take minutes to read. A function literal declaring a name of the function around it again
+    /// still gets a name of its own, so the two are never taken for one.
+    /// </summary>
+    [Fact]
+    public async Task EachFunctionsOwnVariablesKeepTheirNames()
+    {
+        const string code = """
+            package main
+
+            import "fmt"
+
+            func double(value int) int {
+            	total := value * 2
+            	return total
+            }
+
+            func triple(value int) int {
+            	total := value * 3
+            	return total
+            }
+
+            func counted(value int) int {
+            	total := value
+            	show := func() {
+            		total := 1
+            		fmt.Println(total)
+            	}
+            	show()
+            	return total
+            }
+
+            func main() {
+            	fmt.Println(double(1), triple(1), counted(1))
+            }
+            """;
+
+        if (await CheckAsync(code) is not { } read) return;
+
+        foreach (var name in new[] { "double", "triple", "counted" })
+        {
+            var function = read.Program.AllFunctions.Single(each => each.Name == name);
+            Assert.Equal("value", function.Parameters.Single().Name);
+            Assert.Contains("total", IrWalk.LocalNames(function));
+        }
+
+        var literal = read.Program.AllFunctions.Single(each => each.EnclosedBy == "counted");
+        Assert.Contains("total'", IrWalk.LocalNames(literal));
     }
 }

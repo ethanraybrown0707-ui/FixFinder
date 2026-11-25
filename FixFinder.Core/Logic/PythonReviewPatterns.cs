@@ -469,12 +469,16 @@ public static partial class PythonReviewPatterns
     {
         var lines = source.Lines;
 
+        // A line inside brackets left open above it - the ) closing a return written over several lines - goes on that
+        // statement; it is not a statement of its own, so it is never taken for the last one.
+        var open = OpenBrackets(masked);
+
         for (var header = 0; header < masked.Count; header++)
         {
             if (FunctionHeader().Match(masked[header]) is not { Success: true } def) continue;
 
             var (first, end) = Body(lines, header);
-            var body = Statements(masked, first, end).ToList();
+            var body = Statements(masked, first, end).Where(k => open[k] == 0).ToList();
             if (body.Count == 0) continue;
 
             if (body.Any(k => Regex.IsMatch(masked[k], @"^\s*(?:async\s+)?def\s|\byield\b"))) continue;
@@ -497,7 +501,7 @@ public static partial class PythonReviewPatterns
 
                 var branches = top.Skip(start).ToList();
                 var hasElse = Regex.IsMatch(masked[branches[^1]], @"^\s*else\s*:");
-                var allReturn = branches.All(b => EndsInReturn(lines, masked, b));
+                var allReturn = branches.All(b => EndsInReturn(lines, masked, open, b));
 
                 if (hasElse && allReturn) continue;
                 when = hasElse ? "one of its branches finishes without a return" : "none of the `if` branches matches";
@@ -520,10 +524,10 @@ public static partial class PythonReviewPatterns
         }
     }
 
-    private static bool EndsInReturn(IReadOnlyList<string> lines, IReadOnlyList<string> masked, int branch)
+    private static bool EndsInReturn(IReadOnlyList<string> lines, IReadOnlyList<string> masked, int[] open, int branch)
     {
         var (first, end) = Body(lines, branch);
-        var inner = Statements(masked, first, end).ToList();
+        var inner = Statements(masked, first, end).Where(k => open[k] == 0).ToList();
         if (inner.Count == 0) return false;
 
         var indent = Indent(lines[inner[0]]).Length;

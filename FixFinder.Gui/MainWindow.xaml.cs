@@ -91,6 +91,12 @@ public partial class MainWindow : Window
     /// <summary>The inputs the last check tried, for the saved report.</summary>
     private IReadOnlyList<Core.Analysis.Dynamic.InputTried> _tried = [];
 
+    /// <summary>The algorithms the last check recognised in the code, for the saved report.</summary>
+    private IReadOnlyList<Core.Analysis.Recognition.AlgorithmSeen> _recognised = [];
+
+    /// <summary>How the program's own files use each other, as the last check said it, for the saved report.</summary>
+    private IReadOnlyList<string> _fileMap = [];
+
     /// <summary>The files naming a project's libraries that a folder's check has already asked about, or restored, so each is done once.</summary>
     private readonly HashSet<string> _manifestsSeenInFolder = new(StringComparer.OrdinalIgnoreCase);
 
@@ -118,6 +124,7 @@ public partial class MainWindow : Window
     public MainWindow(string? initialFile = null)
     {
         InitializeComponent();
+        Theme.FollowInTitleBar(this);
         ScreenFit.Apply(this);
 
         OutputListBox.ItemsSource = _output;
@@ -127,6 +134,7 @@ public partial class MainWindow : Window
 
         FillPastedLanguageBox();
         UpdateFilterCounts();
+        ShowMode();
         _saveSettling.Tick += SaveSettled_Tick;
 
         var stored = TokenStore.Load();
@@ -650,6 +658,10 @@ public partial class MainWindow : Window
         EmptyState.Visibility = Visibility.Collapsed;
         TriedExpander.Visibility = Visibility.Collapsed;
         _tried = [];
+        RecognisedExpander.Visibility = Visibility.Collapsed;
+        _recognised = [];
+        FileMapExpander.Visibility = Visibility.Collapsed;
+        _fileMap = [];
         CopyReportButton.IsEnabled = false;
         SaveReportButton.IsEnabled = false;
         SinceLastPanel.Visibility = Visibility.Collapsed;
@@ -662,6 +674,22 @@ public partial class MainWindow : Window
         SetLane(LogicStatusText, LogicIcon, LogicProgress, "Reading the code for logic mistakes…", LaneState.Running);
 
         SetBusy(true);
+    }
+
+    /// <summary>Lists the algorithms a check recognised, under the notes, closed until opened; hidden when there are none.</summary>
+    private void ShowRecognised(IReadOnlyList<Core.Analysis.Recognition.AlgorithmSeen> recognised)
+    {
+        RecognisedList.ItemsSource = recognised.Select(seen => new AlgorithmSeenRow(seen)).ToList();
+        RecognisedExpander.Visibility = recognised.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _recognised = recognised;
+    }
+
+    /// <summary>Lists how the program's own files use each other, under the notes, closed until opened; hidden for a program of one file.</summary>
+    private void ShowFileMap(IReadOnlyList<string> fileMap)
+    {
+        FileMapList.ItemsSource = fileMap;
+        FileMapExpander.Visibility = fileMap.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _fileMap = fileMap;
     }
 
     private void FinishReport(CheckReport report)
@@ -678,6 +706,8 @@ public partial class MainWindow : Window
         TriedList.ItemsSource = report.Tried.Select(tried => new TriedInputRow(tried)).ToList();
         TriedExpander.Visibility = report.Tried.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         _tried = report.Tried;
+        ShowRecognised(report.Recognised);
+        ShowFileMap(report.FileMap);
 
         // Compared before the findings are shown, so each is shown with where it stands against the last check.
         RememberThisCheck(report);
@@ -745,22 +775,35 @@ public partial class MainWindow : Window
         var ran = report.Run is not null;
         var now = CheckRecord.Of(file, report.Findings, ran: ran);
         var last = _history.LastTime(file);
+        var before = _history.ChecksOf(file);
 
         // The last check's findings themselves are to hand only when it was made in this session, and only then is a fixed
         // one named; the history on disk keeps no more than a fingerprint of each.
         var lastFindings = last is not null && _checkedThisSession.TryGetValue(file, out var held) && held.Record.When == last.When ? held.Findings : null;
 
-        _comparison = CheckComparison.Of(last, report.Findings, ran, lastFindings);
+        _comparison = CheckComparison.Of(last, report.Findings, ran, lastFindings, [.. before.Skip(1)]) is { } compared
+            ? compared with { Trend = CheckHistory.Trend(before, now) }
+            : null;
         var said = _comparison?.Summary(now.When) ?? CheckHistory.Since(last, now);
+        if (said is not null && _comparison?.Trend is { } trend) said += " " + trend;
 
         SinceLastText.Text = said ?? "";
+        SinceLastText.Visibility = said is null ? Visibility.Collapsed : Visibility.Visible;
         FixedSinceLastList.ItemsSource = _comparison?.Fixed.Select(finding => new FixedRow(finding.Title, FindingText.Location(finding))).ToList();
-        SinceLastPanel.Visibility = said is null ? Visibility.Collapsed : Visibility.Visible;
+
+        // The kinds of mistake that turned up in other programs lately, read before this check is added to the history.
+        _recurring = [.. RecurringMistakes.Of(_history.Checks, now).Select(RecurringMistakes.Said)];
+        RecurringText.Text = string.Join("\n\n", _recurring);
+        RecurringText.Visibility = _recurring.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SinceLastPanel.Visibility = said is null && _recurring.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
 
         // Recorded after the comparison, so this check is not compared with itself.
         _history.Record(now);
         _checkedThisSession[file] = (now, report.Findings);
     }
+
+    /// <summary>What this check said of the kinds of mistake that turned up in the person's other programs lately.</summary>
+    private IReadOnlyList<string> _recurring = [];
 
     /// <summary>A finding the last check of this program found and this one did not, as the report names it.</summary>
     private sealed record FixedRow(string Title, string Where);
@@ -792,8 +835,11 @@ public partial class MainWindow : Window
             LogicSummary = report.LogicSummary,
             Notes = [.. _notes],
             Tried = _tried,
+            Recognised = _recognised,
+            FileMap = _fileMap,
             Findings = [.. _findings.Select(row => row.Finding)],
             SinceLastCheck = _comparison,
+            Recurring = _recurring,
             Output = [.. _output.Select(row => row.DisplayLine)],
         };
 
@@ -878,9 +924,11 @@ public partial class MainWindow : Window
         // A finding can come back with more in it - what its fix changes - so it is known by where it is and what it says.
         static string Key(Finding f) => $"{f.File}|{f.Line}|{f.RuleId}|{f.Title}";
 
-        // What the reader opened stays open when the findings come back - More detail, and the corrected code.
+        // What the reader opened stays open when the findings come back - More detail, and the corrected code - and a finding
+        // not shown before starts as the mode says: its corrected code hidden to learn from, shown to fix.
         var expanded = _findings.Where(r => r.IsExpanded).Select(r => Key(r.Finding)).ToHashSet();
         var corrected = _findings.Where(r => r.CorrectionShown).Select(r => Key(r.Finding)).ToHashSet();
+        var shownBefore = _findings.Select(r => Key(r.Finding)).ToHashSet();
 
         // Which findings follow from which is worked out in Core, across the whole report, as a saved report works it out.
         var links = FindingLinks.Of(findings);
@@ -888,10 +936,11 @@ public partial class MainWindow : Window
         _findings = findings.Select(f => new FindingRow(f)
         {
             IsExpanded = expanded.Contains(Key(f)),
-            CorrectionShown = corrected.Contains(Key(f)),
+            CorrectionShown = shownBefore.Contains(Key(f)) ? corrected.Contains(Key(f)) : _preferences.Mode == WorkingMode.Fix,
             FollowsFrom = links.FollowsFrom(f),
             LeadsTo = links.LeadsTo(f),
             Status = _comparison?.StatusOf(f),
+            Streak = _comparison?.StreakOf(f),
         }).ToList();
 
         FilterPanel.Visibility = _findings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -1061,9 +1110,11 @@ public partial class MainWindow : Window
         _notes.Clear();
         foreach (var note in report.Notes) _notes.Add(note);
 
-        // Read again, not run: no input was tried.
+        // Read again, not run: no input was tried, but what the code looks like is read from the code.
         TriedExpander.Visibility = Visibility.Collapsed;
         _tried = [];
+        ShowRecognised(report.Recognised);
+        ShowFileMap(report.FileMap);
 
         // Only read, so it is not set beside a check that compiled and ran the program.
         _comparison = null;
@@ -1204,6 +1255,31 @@ public partial class MainWindow : Window
         EmptyState.Visibility = Visibility.Visible;
         EmptyTitleText.Text = title;
         EmptyBodyText.Text = text;
+    }
+
+    /// <summary>Whether the mode is being shown rather than chosen, so showing it saves nothing.</summary>
+    private bool _showingMode;
+
+    /// <summary>Checks the pill of the mode the preferences hold.</summary>
+    private void ShowMode()
+    {
+        _showingMode = true;
+        (_preferences.Mode == WorkingMode.Fix ? FixMode : LearnMode).IsChecked = true;
+        _showingMode = false;
+    }
+
+    /// <summary>
+    /// Learn or Fix chosen: kept for next time, and every finding shown now has its corrected code hidden, to learn from,
+    /// or shown, to fix with.
+    /// </summary>
+    private void Mode_Checked(object sender, RoutedEventArgs e)
+    {
+        var mode = ReferenceEquals(sender, FixMode) ? WorkingMode.Fix : WorkingMode.Learn;
+        if (_showingMode || _preferences.Mode == mode) return;
+
+        _preferences.Mode = mode;
+        _preferences.Save();
+        foreach (var row in _findings) row.CorrectionShown = mode == WorkingMode.Fix;
     }
 
     private void ToggleCorrection_Click(object sender, RoutedEventArgs e)

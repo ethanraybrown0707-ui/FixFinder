@@ -7,6 +7,21 @@ internal static class AnalysisGuides
 {
     public static IReadOnlyList<GuideEntry> All { get; } =
     [
+        GuideFor(["analysis-circular-import"], "Imports that go round in a circle",
+            "Python runs a module's lines from its top the first time it is imported, and while it is part way through, the module is already there for other modules to import - holding only what its lines so far have defined. When two modules import each other, one of them asks the other for a name before the other has reached the line that defines it, and Python stops with ImportError. The file that is run is a module named __main__, so a module that imports it by its own name starts it again from its top. Python's message says it cannot import the name, and may add that the module is partially initialized, or that the file should be renamed if it has the name of a library; renaming it does not stop the imports going round.",
+            "The program stops on its first lines, before it does anything it is for, every time it is run that way.",
+            "Put what both modules need in a module of its own that imports neither of them, and import it from there in each - or move it into the module that uses it. Then no module imports the one that imported it, and the file that is run is imported by none of them.",
+            """
+            # settings.py - imports nothing of the program's
+            TAX_RATE = 0.2
+
+            # prices.py
+            from settings import TAX_RATE
+
+            # shop.py - the file that is run
+            from prices import price_with_tax
+            """),
+
         GuideFor(["analysis-division-by-zero"], "Dividing by something that can be zero",
             "Dividing splits something into equal parts, and there is no way to split something into zero parts - so Python gives up rather than answer. FixFinder followed the values along one route through the code and found the number on the bottom of the division can be 0 by the time this line runs.",
             "Dividing by zero stops the program with an error, often only for the inputs nobody tried, like an empty list.",
@@ -386,6 +401,51 @@ internal static class AnalysisGuides
                 print(n)
                 return countdown(n - 1)
             """),
+
+        GuideFor(["analysis-overwritten-before-read"], "A value worked out and then lost",
+            "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given a value, and then - before any line reads it - given another, so the first value is never used. Most often the second line was meant for another variable, or the first value was meant to be used before it was replaced.",
+            "Nothing stops: the program runs, but the work done for the first value is thrown away, and whatever was meant to happen with it does not.",
+            "Use the first value before giving the variable another, give the second line a variable of its own, or take out the line whose value is never used.",
+            """
+            def area(width, height):
+                result = width * height
+                return result
+            """),
+
+        GuideFor(["analysis-count-out-of-step"], "A count left out of step",
+            "A class keeps a list and a number saying how many it holds. One method changes both - push puts an item in and adds 1 - but this one changes only one of them, so afterwards the number no longer says how many items there are.",
+            "Whatever trusts the number - a size, a test for empty, a loop over that many items - is wrong after this method runs: three pushes and a pop say 3 items where there are 2.",
+            "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
+            """
+            def pop(self):
+                top = self.items.pop()
+                self.size -= 1
+                return top
+            """),
+
+        GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
+            "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
+            "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
+            "Set the flag where the loop finds what it looks for - found = True inside the loop's if - or test what the loop worked out instead.",
+            """
+            found = False
+            for mark in marks:
+                if mark == wanted:
+                    found = True
+            if found:
+                print("present")
+            """),
+
+        GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
+            "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
+            "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
+            "Take the line out, so the value passed is used - or, if a stand-in is wanted only sometimes, give it inside an if that reads the parameter first.",
+            """
+            def total_price(price, quantity):
+                if quantity < 1:
+                    quantity = 1
+                return price * quantity
+            """),
     ];
 
     /// <summary>What Go does when a program goes wrong, in Go's own words and code.</summary>
@@ -474,11 +534,79 @@ internal static class AnalysisGuides
                 fmt.Println(millis)
             }
             """),
+
+        GuideFor(["analysis-overwritten-before-read"], "A value worked out and then lost",
+            "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given a value, and then - before any line reads it - given another, so the first value is never used. Most often the second line was meant for another variable, or the first value was meant to be used before it was replaced.",
+            "Nothing stops: the program runs, but the work done for the first value is thrown away, and whatever was meant to happen with it does not.",
+            "Use the first value before giving the variable another, give the second line a variable of its own, or take out the line whose value is never used.",
+            """
+            func area(width int, height int) int {
+            	result := width * height
+            	return result
+            }
+            """),
+
+        GuideFor(["analysis-count-out-of-step"], "A count left out of step",
+            "A class keeps a list and a number saying how many it holds. One method changes both - push puts an item in and adds 1 - but this one changes only one of them, so afterwards the number no longer says how many items there are.",
+            "Whatever trusts the number - a size, a test for empty, a loop over that many items - is wrong after this method runs: three pushes and a pop say 3 items where there are 2.",
+            "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
+            """
+            func (stack *Stack) Pop() int {
+                top := stack.items[len(stack.items)-1]
+                stack.items = stack.items[:len(stack.items)-1]
+                stack.size--
+                return top
+            }
+            """),
+
+        GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
+            "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
+            "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
+            "Set the flag where the loop finds what it looks for - found = True inside the loop's if - or test what the loop worked out instead.",
+            """
+            found := false
+            for _, mark := range marks {
+                if mark == wanted {
+                    found = true
+                }
+            }
+            if found {
+                fmt.Println("present")
+            }
+            """),
+
+        GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
+            "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
+            "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
+            "Take the line out, so the value passed is used - or, if a stand-in is wanted only sometimes, give it inside an if that reads the parameter first.",
+            """
+            func totalPrice(price int, quantity int) int {
+                if quantity < 1 {
+                    quantity = 1
+                }
+                return price * quantity
+            }
+            """),
     ];
 
     /// <summary>What JavaScript does when a program goes wrong, in JavaScript's own words and code.</summary>
     public static IReadOnlyList<GuideEntry> JavaScript { get; } =
     [
+        GuideFor(["analysis-circular-import"], "Requires that go round in a circle",
+            "Node runs a module's top level the first time it is required, and while it is part way through, the module is already there for others to require - handing over its exports object as it stands, holding only what its lines so far have put in it. When two modules require each other, one of them gets the other's exports before the other has exported what it needs. A const that takes a name out of them - const { TAX_RATE } = require(\"./shop\") - holds undefined from then on; a const that keeps the whole object sees what is put in it later, unless the module replaces it with module.exports = ..., which leaves the object it kept behind. The file that is run is never started again. Node says only Accessing non-existent property, as a warning, and the program goes on - printing NaN, or failing later with is not a function.",
+            "Nothing stops the program, so it gives a wrong answer - NaN, undefined - or fails somewhere far from the require that caused it.",
+            "Put what both modules need in a module of its own that requires neither of them, and require it from there in each - or move it into the module that uses it, or require the other module inside the function that needs it, which runs once both have finished.",
+            """
+            // settings.js - requires nothing of the program's
+            module.exports = { TAX_RATE: 0.2 };
+
+            // prices.js
+            const { TAX_RATE } = require("./settings");
+
+            // shop.js - the file that is run
+            const { priceWithTax } = require("./prices");
+            """),
+
         GuideFor(["analysis-null-used"], "Using something that is null or undefined",
             "null and undefined both mean 'no value'. On one route through the code this value is still null or undefined when the line asks it for one of its parts - and a no-value has no parts. It happens with a variable declared without a value, a search that found nothing, or a field that is only sometimes set.",
             "Reading a property of null or undefined stops the program with a TypeError.",
@@ -513,6 +641,59 @@ internal static class AnalysisGuides
               }
               console.log(n);
               return countdown(n - 1);
+            }
+            """),
+
+        GuideFor(["analysis-overwritten-before-read"], "A value worked out and then lost",
+            "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given a value, and then - before any line reads it - given another, so the first value is never used. Most often the second line was meant for another variable, or the first value was meant to be used before it was replaced.",
+            "Nothing stops: the program runs, but the work done for the first value is thrown away, and whatever was meant to happen with it does not.",
+            "Use the first value before giving the variable another, give the second line a variable of its own, or take out the line whose value is never used.",
+            """
+            function area(width, height) {
+              const result = width * height;
+              return result;
+            }
+            """),
+
+        GuideFor(["analysis-count-out-of-step"], "A count left out of step",
+            "A class keeps a list and a number saying how many it holds. One method changes both - push puts an item in and adds 1 - but this one changes only one of them, so afterwards the number no longer says how many items there are.",
+            "Whatever trusts the number - a size, a test for empty, a loop over that many items - is wrong after this method runs: three pushes and a pop say 3 items where there are 2.",
+            "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
+            """
+            pop() {
+              if (this.items.length > 0) {
+                this.size -= 1;
+              }
+              return this.items.pop();
+            }
+            """),
+
+        GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
+            "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
+            "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
+            "Set the flag where the loop finds what it looks for - found = True inside the loop's if - or test what the loop worked out instead.",
+            """
+            let found = false;
+            for (const mark of marks) {
+              if (mark === wanted) {
+                found = true;
+              }
+            }
+            if (found) {
+              console.log("present");
+            }
+            """),
+
+        GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
+            "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
+            "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
+            "Take the line out, so the value passed is used - or, if a stand-in is wanted only sometimes, give it inside an if that reads the parameter first.",
+            """
+            function totalPrice(price, quantity) {
+              if (quantity < 1) {
+                quantity = 1;
+              }
+              return price * quantity;
             }
             """),
     ];
@@ -611,6 +792,59 @@ internal static class AnalysisGuides
             int days = 365;
             long long millis = (long long) days * 24 * 60 * 60 * 1000;
             printf("%lld\n", millis);
+            """),
+
+        GuideFor(["analysis-overwritten-before-read"], "A value worked out and then lost",
+            "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given a value, and then - before any line reads it - given another, so the first value is never used. Most often the second line was meant for another variable, or the first value was meant to be used before it was replaced.",
+            "Nothing stops: the program runs, but the work done for the first value is thrown away, and whatever was meant to happen with it does not.",
+            "Use the first value before giving the variable another, give the second line a variable of its own, or take out the line whose value is never used.",
+            """
+            int area(int width, int height) {
+                int result = width * height;
+                return result;
+            }
+            """),
+
+        GuideFor(["analysis-count-out-of-step"], "A count left out of step",
+            "A class keeps a list and a number saying how many it holds. One method changes both - push puts an item in and adds 1 - but this one changes only one of them, so afterwards the number no longer says how many items there are.",
+            "Whatever trusts the number - a size, a test for empty, a loop over that many items - is wrong after this method runs: three pushes and a pop say 3 items where there are 2.",
+            "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
+            """
+            int pop() {
+                int top = items.back();
+                items.pop_back();
+                size--;
+                return top;
+            }
+            """),
+
+        GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
+            "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
+            "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
+            "Set the flag where the loop finds what it looks for - found = True inside the loop's if - or test what the loop worked out instead.",
+            """
+            int found = 0;
+            for (int index = 0; index < count; index++) {
+                if (marks[index] == wanted) {
+                    found = 1;
+                }
+            }
+            if (found) {
+                printf("present\n");
+            }
+            """),
+
+        GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
+            "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
+            "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
+            "Take the line out, so the value passed is used - or, if a stand-in is wanted only sometimes, give it inside an if that reads the parameter first.",
+            """
+            int total_price(int price, int quantity) {
+                if (quantity < 1) {
+                    quantity = 1;
+                }
+                return price * quantity;
+            }
             """),
     ];
 
@@ -1044,6 +1278,60 @@ internal static class AnalysisGuides
                 }
             }
             """),
+
+        GuideFor(["analysis-overwritten-before-read"], "A value worked out and then lost",
+            "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given a value, and then - before any line reads it - given another, so the first value is never used. Most often the second line was meant for another variable, or the first value was meant to be used before it was replaced.",
+            "Nothing stops: the program runs, but the work done for the first value is thrown away, and whatever was meant to happen with it does not.",
+            "Use the first value before giving the variable another, give the second line a variable of its own, or take out the line whose value is never used.",
+            """
+            public class Area {
+                static int area(int width, int height) {
+                    int result = width * height;
+                    return result;
+                }
+            }
+            """),
+
+        GuideFor(["analysis-count-out-of-step"], "A count left out of step",
+            "A class keeps a list and a number saying how many it holds. One method changes both - push puts an item in and adds 1 - but this one changes only one of them, so afterwards the number no longer says how many items there are.",
+            "Whatever trusts the number - a size, a test for empty, a loop over that many items - is wrong after this method runs: three pushes and a pop say 3 items where there are 2.",
+            "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
+            """
+            int pop() {
+                int top = items.remove(items.size() - 1);
+                size--;
+                return top;
+            }
+            """),
+
+        GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
+            "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
+            "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
+            "Set the flag where the loop finds what it looks for - found = True inside the loop's if - or test what the loop worked out instead.",
+            """
+            boolean found = false;
+            for (int mark : marks) {
+                if (mark == wanted) {
+                    found = true;
+                }
+            }
+            if (found) {
+                System.out.println("present");
+            }
+            """),
+
+        GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
+            "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
+            "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
+            "Take the line out, so the value passed is used - or, if a stand-in is wanted only sometimes, give it inside an if that reads the parameter first.",
+            """
+            static int totalPrice(int price, int quantity) {
+                if (quantity < 1) {
+                    quantity = 1;
+                }
+                return price * quantity;
+            }
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> CSharp { get; } =
@@ -1411,6 +1699,69 @@ internal static class AnalysisGuides
             int days = 365;
             long millis = (long)days * 24 * 60 * 60 * 1000;
             Console.WriteLine(millis);
+            """),
+
+        GuideFor(["analysis-overwritten-before-read"], "A value worked out and then lost",
+            "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given a value, and then - before any line reads it - given another, so the first value is never used. Most often the second line was meant for another variable, or the first value was meant to be used before it was replaced.",
+            "Nothing stops: the program runs, but the work done for the first value is thrown away, and whatever was meant to happen with it does not.",
+            "Use the first value before giving the variable another, give the second line a variable of its own, or take out the line whose value is never used.",
+            """
+            public static class Area
+            {
+                static int Measure(int width, int height)
+                {
+                    var result = width * height;
+                    return result;
+                }
+            }
+            """),
+
+        GuideFor(["analysis-count-out-of-step"], "A count left out of step",
+            "A class keeps a list and a number saying how many it holds. One method changes both - push puts an item in and adds 1 - but this one changes only one of them, so afterwards the number no longer says how many items there are.",
+            "Whatever trusts the number - a size, a test for empty, a loop over that many items - is wrong after this method runs: three pushes and a pop say 3 items where there are 2.",
+            "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
+            """
+            public int Pop()
+            {
+                var top = items[items.Count - 1];
+                items.RemoveAt(items.Count - 1);
+                size--;
+                return top;
+            }
+            """),
+
+        GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
+            "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
+            "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
+            "Set the flag where the loop finds what it looks for - found = True inside the loop's if - or test what the loop worked out instead.",
+            """
+            bool found = false;
+            foreach (var mark in marks)
+            {
+                if (mark == wanted)
+                {
+                    found = true;
+                }
+            }
+            if (found)
+            {
+                Console.WriteLine("present");
+            }
+            """),
+
+        GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
+            "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
+            "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
+            "Take the line out, so the value passed is used - or, if a stand-in is wanted only sometimes, give it inside an if that reads the parameter first.",
+            """
+            static int TotalPrice(int price, int quantity)
+            {
+                if (quantity < 1)
+                {
+                    quantity = 1;
+                }
+                return price * quantity;
+            }
             """),
     ];
 }

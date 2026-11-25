@@ -51,10 +51,14 @@ public sealed class DartMissingSemicolon : ILocalFixRule
 /// <summary>
 /// "Undefined name 'totl'.", or "The function 'averge' isn't defined.": when the file declares one name within two letters
 /// of it - a variable, a parameter or a function - and only one, the name is changed to that one on the line the analyzer names.
+/// A function the file has none close to - prnt('hi') - is compared with Dart's own top-level functions as well.
 /// </summary>
 public sealed partial class DartNearestName : ILocalFixRule
 {
     public string Id => "dart-nearest-name";
+
+    /// <summary>The top-level functions every Dart program has, from dart:core.</summary>
+    private static readonly string[] DartFunctions = ["print", "identical", "identityHashCode"];
 
     [GeneratedRegex(@"^(?:Undefined name '(?<name>\w+)'\.|The function '(?<name>\w+)' isn't defined\.)")]
     private static partial Regex Message();
@@ -70,11 +74,14 @@ public sealed partial class DartNearestName : ILocalFixRule
 
         var wrong = said.Groups["name"].Value;
         var declared = Declared().Matches(string.Join("\n", CodeText.MaskAll(at.Source.Lines, Syntax.CLike))).Select(name => name.Groups["name"].Value);
-        if (CodeText.Nearest(wrong, declared) is not { } right) return null;
+        var ownName = CodeText.Nearest(wrong, declared);
+        var function = DartCode.AnalyzerCode(context) == "undefined_function";
+        if ((ownName ?? (function ? CodeText.Nearest(wrong, DartFunctions) : null)) is not { } right) return null;
         if (CodeText.ReplaceWord(at.Line, wrong, right, Syntax.CLike, at.Column - 1) is not { } corrected) return null;
 
         return LocalFix.ReplaceLine(Id, $"Change {wrong} to {right}",
-            $"{wrong} is declared nowhere, so Dart will not compile the program. {right}, a letter or two apart, is the name the file declares.",
+            $"{wrong} is declared nowhere, so Dart will not compile the program. {right}, a letter or two apart, is " +
+            (ownName is not null ? "the name the file declares." : "one of Dart's own functions."),
             at.Source.Path, at.Number, corrected);
     }
 }

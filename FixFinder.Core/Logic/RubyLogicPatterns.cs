@@ -71,12 +71,36 @@ public static partial class RubyLogicPatterns
     [GeneratedRegex(@"^-?\d[\d_]*$|\.(?:length|size|count|to_i)$|^\w+\.(?:sum|length|size|count)$")]
     private static partial Regex WholeNumberValue();
 
+    /// <summary><c>average = total / count</c>: a division kept under a name that says it holds a fraction - an average, a mean, a ratio.</summary>
+    [GeneratedRegex(@"^(?<lead>\s*(?<target>(?:average|avg|mean|ratio|percentage|percent|share|rate)\w*)\s*=\s*)(?<dividend>[a-z_]\w*|\w+\.(?:sum|length|size|count))\s*/\s*(?<divisor>[a-z_]\w*|\w+\.(?:length|size|count))\s*$")]
+    private static partial Regex DivisionNamedAsADecimal();
+
+    /// <summary>
+    /// Two whole numbers divided where a decimal was meant: made a decimal after the division - (total / count).to_f - or kept
+    /// as it is under a name that says it holds a fraction, average = total / count. Ruby divides whole numbers into a whole
+    /// number, so 7 / 2 is 3 either way; the change makes the first number a decimal before dividing.
+    /// </summary>
     private static IEnumerable<LogicFinding> IntegerAverage(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var code = string.Join("\n", masked);
 
         for (var index = 0; index < masked.Count; index++)
         {
+            if (DivisionNamedAsADecimal().Match(masked[index]) is { Success: true } named &&
+                IsWholeNumber(named.Groups["dividend"].Value, code) && IsWholeNumber(named.Groups["divisor"].Value, code))
+            {
+                var (target, dividend, divisor) = (named.Groups["target"].Value, named.Groups["dividend"].Value, named.Groups["divisor"].Value);
+                var line = source.Lines[index];
+
+                yield return new LogicFinding(id, index + 1,
+                    $"`{dividend} / {divisor}` divides two whole numbers, which in Ruby gives a whole number - 7 / 2 is 3 - so `{target}` " +
+                    "loses its fraction",
+                    LocalFix.ReplaceLine(id, "Make the first number a decimal before dividing",
+                        "A decimal divided by a whole number keeps the fraction, so the first number is made a decimal first.",
+                        source.Path, index + 1, line[..named.Groups["dividend"].Index] + $"{dividend}.to_f / {divisor}" + CodeText.SplitComment(line, Syntax.Python).Tail));
+                continue;
+            }
+
             foreach (Match division in DecimalOfDivision().Matches(masked[index]))
             {
                 var dividend = division.Groups["dividend"].Value;

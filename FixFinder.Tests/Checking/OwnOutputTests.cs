@@ -197,6 +197,49 @@ public class OwnOutputTests(ITestOutputHelper output) : IDisposable
         Assert.EndsWith("it has no main method to run", report.SyntaxSummary, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A file of a Go package other than main - TheAlgorithms' Go searches (MIT licence) are each one - is not a program:
+    /// go run says "package command-line-arguments is not a main package", which was reported as a crash when nothing ran.
+    /// </summary>
+    [Fact]
+    public async Task AGoFileOfAPackageOfFunctionsHasNothingToRunRatherThanACrash()
+    {
+        if (TargetFactory.FindOnPath("go") is null) return;
+
+        var file = Write("search/linear.go", """
+            package search
+
+            // Linear gives where target is in values, or -1 when it is not there.
+            func Linear(values []int, target int) int {
+                for i, value := range values {
+                    if value == target {
+                        return i
+                    }
+                }
+                return -1
+            }
+            """);
+        Write("search/linear_test.go", """
+            package search
+
+            import "testing"
+
+            func TestLinear(t *testing.T) {
+                if Linear([]int{4, 8}, 8) != 1 {
+                    t.Fail()
+                }
+            }
+            """);
+
+        var report = await CheckAsync(file, CodeLanguage.Go);
+
+        if (report.SyntaxSummary == "It could not be started") return;
+        Assert.DoesNotContain(report.Findings, finding => finding.Kind == FindingKind.Runtime);
+        Assert.Contains(report.Notes, note => note.StartsWith("linear.go is part of the Go package search, not a program", StringComparison.Ordinal) &&
+                                              note.Contains("its tests in linear_test.go, which go test runs and FixFinder does not", StringComparison.Ordinal));
+        Assert.EndsWith("it is a package of functions, not a program, so there is nothing to run", report.SyntaxSummary, StringComparison.Ordinal);
+    }
+
     /// <summary>A main given one String rather than an array of them is no main to any Java, so java cannot start the class.</summary>
     [Fact]
     public async Task AJavaMainOfTheWrongShapeIsStillAMistakeJavaCouldNotStart()

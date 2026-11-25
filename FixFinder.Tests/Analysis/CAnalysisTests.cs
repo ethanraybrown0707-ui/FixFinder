@@ -971,4 +971,388 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
         var finding = Assert.Single(findings, f => f.CheckId == "analysis-null-used");
         Assert.StartsWith("`end` is NULL here, so reading `*end` fails", finding.Message);
     }
+
+    /// <summary>
+    /// lower[lowerCount++] = items[i] stores and counts at once, so the loops after it that go up to lowerCount and
+    /// higherCount do run - a correct quicksort, which prints 1 1 2 3 3. Stored without being counted, both counts stay 0
+    /// and those two loops never run.
+    /// </summary>
+    [Theory]
+    [InlineData("lowerCount++", "higherCount++", false)]
+    [InlineData("lowerCount", "higherCount", true)]
+    public async Task ACountRaisedInsideAnIndexIsSeenByTheLoopsAfterIt(string lowerAt, string higherAt, bool neverRun)
+    {
+        var (_, findings) = await CheckAsync($$"""
+            #include <stdio.h>
+
+            static void quicksort(int *items, int count) {
+                if (count <= 1) return;
+                int pivot = items[0];
+                int lower[16], higher[16];
+                int lowerCount = 0, higherCount = 0;
+                for (int i = 1; i < count; i++) {
+                    if (items[i] < pivot) {
+                        lower[{{lowerAt}}] = items[i];
+                    } else if (items[i] >= pivot) {
+                        higher[{{higherAt}}] = items[i];
+                    }
+                }
+                quicksort(lower, lowerCount);
+                quicksort(higher, higherCount);
+                int at = 0;
+                for (int i = 0; i < lowerCount; i++) items[at++] = lower[i];
+                items[at++] = pivot;
+                for (int i = 0; i < higherCount; i++) items[at++] = higher[i];
+            }
+
+            int main(void) {
+                int numbers[] = {3, 1, 2, 3, 1};
+                quicksort(numbers, 5);
+                for (int i = 0; i < 5; i++) {
+                    printf(i > 0 ? " %d" : "%d", numbers[i]);
+                }
+                printf("\n");
+                return 0;
+            }
+            """);
+
+        int[] expected = neverRun ? [18, 20] : [];
+        Assert.Equal(expected, findings.Where(f => f.CheckId == "analysis-loop-never-runs").Select(f => f.Span.Line));
+    }
+
+    /// <summary>
+    /// An array has the size its brackets give, however few values it is set up with: int done[N] = {0} has N places, the
+    /// rest zero - it was once read as one place, so done[i] in a loop up to N was said to fail. Only without a size do
+    /// the values give it, a string's with the zero that ends it. A place past the size is still found.
+    /// </summary>
+    [Theory]
+    [InlineData("main.c", "int done[N] = {0};", "done[4]", false)]
+    [InlineData("main.c", "int done[N] = {0};", "done[5]", true)]
+    [InlineData("main.c", "double weights[3] = {1.5};", "weights[2]", false)]
+    [InlineData("main.c", "double weights[3] = {1.5};", "weights[3]", true)]
+    [InlineData("main.c", "int big[1000] = {0};", "big[999]", false)]
+    [InlineData("main.c", "int big[1000] = {0};", "big[1000]", true)]
+    [InlineData("main.c", "int grid[3][3] = {{0}};", "grid[2][0]", false)]
+    [InlineData("main.c", "int marks[5] = {[4] = 1};", "marks[4]", false)]
+    [InlineData("main.c", "char name[20] = \"abc\";", "name[19]", false)]
+    [InlineData("main.c", "char name[20] = \"abc\";", "name[20]", true)]
+    [InlineData("main.c", "char word[] = \"abc\";", "word[3]", false)]
+    [InlineData("main.c", "char word[] = \"abc\";", "word[4]", true)]
+    [InlineData("main.c", "int points[] = {3, 5, 8};", "points[3]", true)]
+    [InlineData("main.cpp", "int slots[4]{};", "slots[3]", false)]
+    [InlineData("main.cpp", "int slots[4]{};", "slots[4]", true)]
+    public async Task AnArrayHasTheSizeItsBracketsGiveHoweverFewValuesItIsSetUpWith(string name, string declaration, string read, bool outside)
+    {
+        var (_, findings) = await CheckAsync($$"""
+            #define N 5
+
+            int main(void) {
+                {{declaration}}
+                return {{read}};
+            }
+            """, name);
+
+        int[] expected = outside ? [5] : [];
+        Assert.Equal(expected, findings.Where(f => f.CheckId == "analysis-index-out-of-range").Select(f => f.Span.Line));
+    }
+
+    /// <summary>
+    /// A shortest-path search that marks each place done in an array set up as {0}: every round finds the nearest place not
+    /// yet done, and the program prints 0 3 1 4. Nothing in it can fail.
+    /// </summary>
+    [Fact]
+    public async Task AShortestPathSearchOverAnArraySetUpWithOneZeroIsLeftAlone()
+    {
+        var (_, findings) = await CheckAsync("""
+            #include <stdio.h>
+
+            #define N 4
+            #define INF 1000000000
+
+            int main(void) {
+                int graph[N][N] = {{0, 4, 1, 0}, {0, 0, 0, 1}, {0, 2, 0, 5}, {0, 0, 0, 0}};
+                int dist[N] = {0, INF, INF, INF};
+                int done[N] = {0};
+                for (int round = 0; round < N; round++) {
+                    int node = -1;
+                    for (int i = 0; i < N; i++) {
+                        if (!done[i] && (node < 0 || dist[i] < dist[node])) node = i;
+                    }
+                    done[node] = 1;
+                    for (int next = 0; next < N; next++) {
+                        if (graph[node][next] > 0 && dist[node] + graph[node][next] < dist[next]) dist[next] = dist[node] + graph[node][next];
+                    }
+                }
+                for (int i = 0; i < N; i++) printf(i > 0 ? " %d" : "%d", dist[i]);
+                printf("\n");
+                return 0;
+            }
+            """);
+
+        Assert.Empty(findings);
+    }
+
+    /// <summary>
+    /// A C++ reference is another name for its variable: int&amp; n takes the caller's variable, int&amp; alias = rows is rows.
+    /// The reader keeps which parameters can be written through - not a const one, but a const int*&amp; whose pointer
+    /// can - and writes each argument a call may change through one as a value the call sets, as it does C#'s ref.
+    /// </summary>
+    [Fact]
+    public async Task TheCppReaderKeepsWhatAReferenceIsAnotherNameFor()
+    {
+        var (program, _) = await CheckAsync("""
+            #include <string>
+            #include <vector>
+
+            void take(int& a, const int& b, int c, std::vector<int>& v, const std::string& s, const int*& p) {
+                a = b + c + v.size() + s.size() + *p;
+            }
+
+            int main() {
+                int x = 1, y = 2, z = 3;
+                std::vector<int> items;
+                std::string name;
+                const int* cursor = &x;
+                int& alias = x;
+                auto&& again = y;
+                take(x, y, z, items, name, cursor);
+                return alias + again;
+            }
+            """, "main.cpp");
+
+        var take = program.Functions.Single(function => function.Name == "take");
+        Assert.Equal([true, false, false, true, false, true], take.Parameters.Select(parameter => parameter.ByReference));
+
+        var main = program.Functions.Single(function => function.Name == "main");
+        var call = IrWalk.Statements(main.Body).SelectMany(IrWalk.Expressions).SelectMany(IrWalk.Within).OfType<Call>().Single(c => c.CalleeName == "take");
+        Assert.Equal([0, 3, 5], call.Arguments.Select((argument, index) => (argument, index)).Where(pair => pair.argument.Value is AssignValue).Select(pair => pair.index));
+
+        var borrowed = IrWalk.Statements(main.Body).OfType<Declare>().Where(declare => declare.Lifetime == Lifetime.Borrowed).Select(declare => declare.Variable);
+        Assert.Equal(["alias", "again"], borrowed);
+    }
+
+    /// <summary>
+    /// A variable changed through a reference: rows is 3 when the first loop ends with i at 4, then alias = 10 sets it,
+    /// and grow, which takes int&amp; n, adds 5. Built with g++ the program prints 16, so the second loop runs - it was once
+    /// said never to, the reader having written int&amp; alias = rows as a copy and grow(rows) as changing nothing.
+    /// </summary>
+    [Fact]
+    public async Task AVariableChangedThroughAReferenceIsNotTakenToHoldWhatItHeldBefore()
+    {
+        var (_, findings) = await CheckAsync("""
+            #include <cstdio>
+
+            void grow(int& n) { n = n + 5; }
+
+            int main() {
+                int rows = 3;
+                int& alias = rows;
+                int i = 0;
+                while (i <= rows) i++;
+                alias = 10;
+                grow(rows);
+                while (i <= rows) i++;
+                std::printf("%d\n", i);
+                return 0;
+            }
+            """, "main.cpp");
+
+        Assert.Empty(findings);
+    }
+
+    /// <summary>
+    /// After the first loop i is 4 and rows 3; what comes between the loops decides whether the second runs. Built with g++,
+    /// each program printed i, alias and more. The second loop runs, and is left alone, when rows is changed through
+    /// grow's int&amp; n (9 8 20), through alias (11 10 20), through a reference to alias (11 10 20), through one bound to
+    /// rows or more, whichever is smaller (11 10 20), by std::swap (21 20 3), by std::tie (11 10 30), by sscanf given
+    /// alias's address (11 10 20), by a lambda held in a variable that takes int&amp; (9 8 20), by one that adds to alias,
+    /// which it captures (11 10 20), or by a grow defined after main (9 8 20). It never runs, and is reported, when grow
+    /// takes a copy (4 3 20), defined before main or after it; when a function takes rows as const int&amp; (4 3 8); and
+    /// when rows is raised and then lowered through alias (4 2 20), which was missed while alias was taken for a copy.
+    /// </summary>
+    [Theory]
+    [InlineData("void grow(int& n) { n = n + 5; }", "grow(rows);", "", false)]
+    [InlineData("void grow(int n) { n = n + 5; }", "grow(rows);", "", true)]
+    [InlineData("int grown(const int& n) { return n + 5; }", "more = grown(rows);", "", true)]
+    [InlineData("// nothing else", "alias = 10;", "", false)]
+    [InlineData("// nothing else", "rows = 10; alias = 2;", "", true)]
+    [InlineData("// nothing else", "int& again = alias; again = 10;", "", false)]
+    [InlineData("// nothing else", "int& smaller = rows < more ? rows : more; smaller = 10;", "", false)]
+    [InlineData("// nothing else", "std::swap(rows, more);", "", false)]
+    [InlineData("// nothing else", "std::tie(rows, more) = std::make_pair(10, 30);", "", false)]
+    [InlineData("// nothing else", "std::sscanf(\"10\", \"%d\", &alias);", "", false)]
+    [InlineData("// nothing else", "auto add = [](int& n) { n += 5; }; add(rows);", "", false)]
+    [InlineData("// nothing else", "auto bump = [&] { alias += 7; }; bump();", "", false)]
+    [InlineData("void grow(int& n);", "grow(rows);", "void grow(int& n) { n = n + 5; }", false)]
+    [InlineData("void grow(int n);", "grow(rows);", "void grow(int n) { n = n + 5; }", true)]
+    public async Task WhatIsWrittenThroughACppReferenceIsSeenByTheLoopAfterIt(string before, string between, string after, bool neverRuns)
+    {
+        var (_, findings) = await CheckAsync($$"""
+            #include <cstdio>
+            #include <tuple>
+            #include <utility>
+
+            {{before}}
+
+            int main() {
+                int rows = 3;
+                int more = 20;
+                int& alias = rows;
+                int i = 0;
+                while (i <= rows) i++;
+                {{between}}
+                while (i <= rows) i++;
+                std::printf("%d %d %d\n", i, alias, more);
+                return 0;
+            }
+            {{after}}
+            """, "main.cpp");
+
+        int[] expected = neverRuns ? [14] : [];
+        Assert.Equal(expected, findings.Where(f => f.CheckId == "analysis-loop-never-runs").Select(f => f.Span.Line));
+    }
+
+    /// <summary>
+    /// A const reference to a number of another type is bound to a copy made from it: wide keeps 3 when rows becomes 10, so
+    /// the second loop never runs - built with g++ the program printed 4 3 10 - and is reported as such.
+    /// </summary>
+    [Fact]
+    public async Task AConstReferenceToANumberOfAnotherTypeIsACopy()
+    {
+        var (_, findings) = await CheckAsync("""
+            #include <cstdio>
+
+            int main() {
+                int rows = 3;
+                const long& wide = rows;
+                int i = 0;
+                while (i <= wide) i++;
+                rows = 10;
+                while (i <= wide) i++;
+                std::printf("%d %ld %d\n", i, wide, rows);
+                return 0;
+            }
+            """, "main.cpp");
+
+        Assert.Equal([9], findings.Where(f => f.CheckId == "analysis-loop-never-runs").Select(f => f.Span.Line));
+    }
+
+    /// <summary>
+    /// x is handed unset to a function taking int&amp;, which sets it: both programs printed 5 built with g++. Handing x on is
+    /// still taken as reading it - grow does read it, init does not, and neither is looked into - but once the call has
+    /// set x, printing it is not reading a variable never given a value, as it was said to be while the call was taken to
+    /// change nothing.
+    /// </summary>
+    [Theory]
+    [InlineData("void init(int& v) { v = 5; }", "init(x);")]
+    [InlineData("void grow(int& n) { n = n + 5; }", "grow(x);")]
+    public async Task AVariableSetThroughAnIntRefParameterIsSetOnceTheCallReturns(string function, string call)
+    {
+        var (_, findings) = await CheckAsync($$"""
+            #include <cstdio>
+
+            {{function}}
+
+            int main() {
+                int x;
+                {{call}}
+                std::printf("%d\n", x);
+                return 0;
+            }
+            """, "main.cpp");
+
+        Assert.Equal([7], findings.Where(f => f.CheckId == "analysis-uninitialised-read").Select(f => f.Span.Line));
+    }
+
+    /// <summary>
+    /// A pointer handed to a lambda held in a variable is still handed on: freed first, it is still memory used after it
+    /// was freed (built with g++, one run printed 455704432, not the 4 it held) - though the call is now taken to be able to
+    /// give p another value.
+    /// </summary>
+    [Fact]
+    public async Task AFreedPointerHandedToALambdaInAVariableIsStillUsedAfterItIsFreed()
+    {
+        var (_, findings) = await CheckAsync("""
+            #include <cstdio>
+
+            int main() {
+                int* p = new int(4);
+                auto show = [](int* q) { std::printf("%d\n", *q); };
+                delete p;
+                show(p);
+                return 0;
+            }
+            """, "main.cpp");
+
+        Assert.Equal([7], findings.Where(f => f.CheckId == "analysis-use-after-free").Select(f => f.Span.Line));
+    }
+
+    /// <summary>
+    /// p holds x's address, and bump, a lambda held in a variable, writes 10 through it: built with g++ the program prints
+    /// 10, so the second loop runs. Handing p on still makes x unknown, however the call is now written.
+    /// </summary>
+    [Fact]
+    public async Task APointerHandedToALambdaInAVariableStillLeavesWhatItPointsAtUnknown()
+    {
+        var (_, findings) = await CheckAsync("""
+            #include <cstdio>
+
+            int main() {
+                int x = 3;
+                int* p = &x;
+                auto bump = [](int* q) { *q = 10; };
+                int i = 0;
+                while (i < x) i++;
+                bump(p);
+                while (i < x) i++;
+                std::printf("%d\n", i);
+                return 0;
+            }
+            """, "main.cpp");
+
+        Assert.Empty(findings);
+    }
+
+    /// <summary>
+    /// A lambda that assigns a variable it captures changes the variable outside it. After the first loop i is 4 and rows 3;
+    /// what comes between the loops decides whether the second runs. Built with g++, each program printed i, rows and more.
+    /// The second loop runs, and is left alone, when rows is changed by a lambda held in a variable - rows += 7 (11 10 0),
+    /// rows = rows + 7 (11 10 0), ++rows; rows++ captured as [&amp;rows] (6 5 0) - by one run where it is written (13 12 0),
+    /// by one handed to std::for_each (9 8 0), and by a lambda inside a lambda (9 8 0). Each was said never to run while
+    /// the assignment was read as Python reads one: as the lambda declaring a rows of its own. It never runs, and is
+    /// reported, when the lambda does declare a rows of its own and changes that (4 3 17), or changes only a count of its
+    /// own (4 3 7).
+    /// </summary>
+    [Theory]
+    [InlineData("auto bump = [&] { rows += 7; }; bump();", false)]
+    [InlineData("auto grow = [&]() { rows = rows + 7; }; grow();", false)]
+    [InlineData("auto step = [&rows] { ++rows; rows++; }; step();", false)]
+    [InlineData("[&] { rows *= 4; }();", false)]
+    [InlineData("std::for_each(extra.begin(), extra.end(), [&](int x) { rows += x; });", false)]
+    [InlineData("auto outer = [&] { auto inner = [&] { rows += 5; }; inner(); }; outer();", false)]
+    [InlineData("auto bump = [&] { int rows = 10; rows += 7; return rows; }; more = bump();", true)]
+    [InlineData("auto tally = [&] { int count = 0; count += 7; return count; }; more = tally();", true)]
+    public async Task WhatALambdaAssignsToAVariableItCapturesIsSeenByTheLoopAfterIt(string between, bool neverRuns)
+    {
+        var (_, findings) = await CheckAsync($$"""
+            #include <algorithm>
+            #include <cstdio>
+            #include <vector>
+
+            int main() {
+                std::vector<int> extra{2, 3};
+                int rows = 3;
+                int more = 0;
+                int i = 0;
+                while (i <= rows) i++;
+                {{between}}
+                while (i <= rows) i++;
+                std::printf("%d %d %d\n", i, rows, more);
+                return 0;
+            }
+            """, "main.cpp");
+
+        int[] expected = neverRuns ? [12] : [];
+        Assert.Equal(expected, findings.Where(f => f.CheckId == "analysis-loop-never-runs").Select(f => f.Span.Line));
+    }
 }

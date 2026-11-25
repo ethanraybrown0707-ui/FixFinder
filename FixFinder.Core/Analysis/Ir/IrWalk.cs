@@ -118,12 +118,15 @@ public static class IrWalk
         _ => [],
     };
 
-    /// <summary>Names a function uses without binding them itself: they belong to an enclosing function or the module.</summary>
-    public static HashSet<string> FreeNames(IrFunction function)
+    /// <summary>
+    /// Names a function uses without binding them itself: they belong to an enclosing function or the module. Where
+    /// assigning does not declare - in every language but Python - a name the function only assigns is one of them too.
+    /// </summary>
+    public static HashSet<string> FreeNames(IrFunction function, bool assigningDeclares = true)
     {
         var used = Statements(function.Body).SelectMany(Expressions).SelectMany(Names).ToHashSet(StringComparer.Ordinal);
         used.UnionWith(function.OuterNames);
-        used.ExceptWith(LocalNames(function));
+        used.ExceptWith(LocalNames(function, assigningDeclares));
         return used;
     }
 }

@@ -282,7 +282,10 @@ public sealed partial class PythonLambdaReturn : ILocalFixRule
     }
 }
 
-/// <summary><c>'[' was never closed</c>, on a line that plainly ends where the bracket should.</summary>
+/// <summary>
+/// <c>'[' was never closed</c>, on a line that plainly ends where the bracket should - or, for a list or dict whose items
+/// go on over the lines below it, after the last of them, where the indented items end.
+/// </summary>
 public sealed partial class PythonUnclosedBracket : ILocalFixRule
 {
     public string Id => "python-unclosed-bracket";
@@ -304,7 +307,8 @@ public sealed partial class PythonUnclosedBracket : ILocalFixRule
         var masked = CodeText.Mask(code, Syntax.Python);
 
         if (masked.Count(c => c == open) - masked.Count(c => c == close) != 1) return null;
-        if (code.Length == 0 || ",+-*/%=([{\\".Contains(code[^1]) || code.TrimEnd().EndsWith(open)) return null;
+        if (code.TrimEnd().EndsWith(open)) return ClosedAfterItsItems(source, number, line, open, close);
+        if (code.Length == 0 || ",+-*/%=([{\\".Contains(code[^1])) return null;
 
         for (var k = number; k < source.Count; k++)
         {
@@ -319,6 +323,126 @@ public sealed partial class PythonUnclosedBracket : ILocalFixRule
             Id, $"Close the {open} on line {number}",
             $"The `{open}` on line {number} is never closed. The line is otherwise complete, so the `{close}` goes at its end.",
             source.Path, number, corrected + tail);
+    }
+
+    /// <summary>
+    /// The bracket put on a line of its own after the items below the line it opens on - those indented more than it, with
+    /// no brackets left open among them - at that line's indentation, as such a list or dict is laid out.
+    /// </summary>
+    private LocalFix? ClosedAfterItsItems(SourceFile source, int number, string line, char open, char close)
+    {
+        var indent = CodeText.Indentation(line);
+        var lastItem = -1;
+        var openInItems = 0;
+
+        for (var lineBelow = number; lineBelow < source.Count; lineBelow++)
+        {
+            var item = source.Lines[lineBelow];
+            if (item.Trim().Length == 0) continue;
+            if (CodeText.Indentation(item).Length <= indent.Length) break;
+
+            var masked = CodeText.Mask(CodeText.SplitComment(item, Syntax.Python).Code, Syntax.Python);
+            openInItems += masked.Count(c => c is '(' or '[' or '{') - masked.Count(c => c is ')' or ']' or '}');
+            lastItem = lineBelow;
+        }
+
+        if (lastItem < 0 || openInItems != 0) return null;
+
+        return LocalFix.Insert(
+            Id, $"Close the {open} on line {number}",
+            $"The `{open}` on line {number} is never closed. Its items go on over the lines below it, so the `{close}` goes on a line of " +
+            "its own after the last of them, where the indented items end.",
+            source.Path, lastItem + 2, [indent + close]);
+    }
+}
+
+/// <summary>
+/// <c>invalid syntax. Perhaps you forgot a comma?</c> - the items of a list, a tuple, a set or a call written side by side
+/// with nothing between them: <c>[60 70 80]</c>, <c>print(name age)</c>. Only plain values are given commas - numbers, names
+/// and text - so an expression such as <c>x for x in marks</c> is left as it is.
+/// </summary>
+public sealed partial class PythonMissingComma : ILocalFixRule
+{
+    public string Id => "python-missing-comma";
+
+    [GeneratedRegex(@"'(?:[^'\\]|\\.)*'|""(?:[^""\\]|\\.)*""|-?\d+(?:\.\d+)?|[A-Za-z_]\w*")]
+    private static partial Regex PlainValue();
+
+    /// <summary>The words a part of an expression is joined by, which are not values side by side.</summary>
+    private static readonly HashSet<string> JoiningWords = new(StringComparer.Ordinal)
+    {
+        "and", "or", "not", "in", "is", "if", "else", "for", "lambda", "async", "await", "yield",
+    };
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (context.Error is not { LanguageId: "python", ExceptionType: "SyntaxError" } error) return null;
+        if (error.Message?.StartsWith("invalid syntax. Perhaps you forgot a comma?", StringComparison.Ordinal) != true) return null;
+        if (context.Frame is not { Line: { } number } frame || context.Read(frame.File) is not { } source) return null;
+        if (source.Line(number) is not { } line) return null;
+
+        var masked = CodeText.Mask(line, Syntax.Python);
+        var corrected = line;
+
+        // Each innermost pair of brackets on the line, the last first, so where each is stays where it was until it is changed.
+        foreach (var (open, close) in InnermostBrackets(masked).OrderByDescending(pair => pair.Open))
+        {
+            var inside = corrected[(open + 1)..close];
+            var parts = inside.Split(',');
+            var changed = parts.Select(part => SideBySide(part) is { } values ? string.Join(", ", values) : part).ToList();
+
+            if (changed.SequenceEqual(parts)) continue;
+            corrected = corrected[..(open + 1)] + string.Join(",", changed) + corrected[close..];
+        }
+
+        if (corrected == line) return null;
+
+        return LocalFix.ReplaceLine(
+            Id, $"Put commas between the items on line {number}",
+            "The items of a list - or a call's arguments - are separated by commas. With nothing between them, Python reads the items " +
+            "side by side as one thing it cannot make sense of, and suggests the comma itself.",
+            source.Path, number, corrected);
+    }
+
+    /// <summary>The plain values a part holds side by side - two or more, and nothing else - or null when it is anything else.</summary>
+    private static List<string>? SideBySide(string part)
+    {
+        var values = PlainValue().Matches(part).ToList();
+        if (values.Count < 2 || values.Any(value => JoiningWords.Contains(value.Value))) return null;
+
+        // Nothing but the values and spaces: taking the values out leaves only spaces, and there is a space between each two.
+        if (PlainValue().Replace(part, "").Trim().Length > 0) return null;
+
+        for (var index = 1; index < values.Count; index++)
+        {
+            var between = part[(values[index - 1].Index + values[index - 1].Length)..values[index].Index];
+            if (between.Length == 0 || between.Any(c => !char.IsWhiteSpace(c))) return null;
+        }
+
+        return values.Select(value => value.Value).ToList();
+    }
+
+    /// <summary>The pairs of brackets on a line with no brackets inside them, where each opens and closes.</summary>
+    private static List<(int Open, int Close)> InnermostBrackets(string masked)
+    {
+        var pairs = new List<(int Open, int Close)>();
+        var opened = new Stack<(int At, bool HasInner)>();
+
+        for (var at = 0; at < masked.Length; at++)
+        {
+            if (masked[at] is '(' or '[' or '{')
+            {
+                if (opened.Count > 0) opened.Push((opened.Pop().At, true));
+                opened.Push((at, false));
+            }
+            else if (masked[at] is ')' or ']' or '}' && opened.Count > 0)
+            {
+                var (start, hasInner) = opened.Pop();
+                if (!hasInner) pairs.Add((start, at));
+            }
+        }
+
+        return pairs;
     }
 }
 

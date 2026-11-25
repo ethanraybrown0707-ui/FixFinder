@@ -34,6 +34,7 @@ public sealed class ParserRegistry
             new GoCompileParser(),
             new RustCompileParser(),
             new RustPanicParser(),
+            new CAssertParser(),
             new GccClangParser(),
             new MsvcParser(),
             new RubyParser(),

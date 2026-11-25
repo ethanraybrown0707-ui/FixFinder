@@ -61,7 +61,8 @@ public static class DiagnosticLines
         var (file, line, cell) = finding.InNotebook is { } place
             ? (place.Notebook, 1, $"Cell {place.Cell}, line {place.Line}: ")
             : (finding.File, finding.Line ?? 1, "");
-        var message = OneLine(cell + joined + finding.Explanation);
+        // What happened in this program, not what the mistake is in general: an editor's list of problems has one line for it.
+        var message = OneLine(cell + joined + Reporting.FindingLayout.Cause(finding));
 
         return format switch
         {
@@ -88,6 +89,35 @@ public static class DiagnosticLines
                 rule = finding.RuleId,
                 code = Code(finding.RuleId),
                 title = finding.Title,
+                summary = Reporting.FindingLayout.Summary(finding),
+                cause = Reporting.FindingLayout.Cause(finding),
+                mostLikelyFix = Reporting.FindingLayout.MostLikelyFix(finding),
+                fixConfidence = Reporting.FindingLayout.FixConfidence(finding) is { } certainty
+                    ? new { level = certainty.Level.ToString().ToLowerInvariant(), because = certainty.Because }
+                    : null,
+                whyFixFinderThinksThis = Reporting.FindingLayout.WhyItThinksThis(finding)
+                    .Select(reason => new { mark = reason.Mark.ToString().ToLowerInvariant(), said = reason.Text }),
+                rootCause = finding.RootCause is { } root
+                    ? new
+                    {
+                        name = root.Name, value = root.Value, crashLine = root.CrashLine, introducedLine = root.IntroducedLine, introducedCode = root.IntroducedCode,
+                        path = root.Path.Select(step => new { depth = step.Depth, function = step.Function, line = step.Line, happened = step.Happened }),
+                    }
+                    : null,
+                howItGotThere = Reporting.FindingLayout.Path(finding)
+                    .Select(step => new { depth = step.Depth, function = step.Function, file = step.File, line = step.Line, happened = step.Happened }),
+                whyThisLineRan = finding.Branches.Select(branch => new
+                {
+                    line = branch.Line, code = branch.Code, kind = branch.Kind.ToString().ToLowerInvariant(), wasTrue = branch.WasTrue,
+                    values = branch.Values.Select(value => new { name = value.Name, value = value.Value }),
+                }),
+                timeline = finding.Timeline.Select(variable => new
+                {
+                    name = variable.Name,
+                    cut = variable.Cut,
+                    values = variable.Changes.Select(change => new { line = change.Line, calledFrom = change.CalledFrom, value = change.Value }),
+                }),
+                learnMore = Reporting.FindingLayout.LearnMore(finding),
                 explanation = finding.Explanation,
                 whyItMatters = finding.WhyItMatters,
                 suggestedFix = finding.SuggestedFix,

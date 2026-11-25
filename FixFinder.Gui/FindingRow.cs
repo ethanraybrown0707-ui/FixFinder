@@ -8,9 +8,10 @@ namespace FixFinder.Gui;
 
 /// <summary>One finding as the report shows it.</summary>
 /// <remarks>
-/// A card says what is wrong, why it matters and how to fix it in words first; the corrected code waits behind a button,
-/// so the reader can try the fix themselves before seeing it; and what lies behind the finding - the evidence, the
-/// verification, where the fix came from - waits under More detail.
+/// A card reads in the order the report does: what happened, its cause in this program, the most likely fix and how sure
+/// FixFinder is of it, the exact code to change - behind a button, so the reader can try the fix themselves before seeing
+/// it - what FixFinder saw that makes it say so, and then what this kind of mistake is in general. The rest of what lies
+/// behind the finding waits under More detail.
 /// </remarks>
 public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 {
@@ -44,8 +45,6 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     /// </remarks>
     public string ConfidenceTooltip => Evidence.Behind(Finding);
 
-    public string EvidenceText => Evidence.For(Finding);
-
     public string KindText => FindingText.Kind(Finding);
 
     /// <summary>The file the finding is in: for a notebook's code, the notebook, not the script FixFinder checked it as.</summary>
@@ -62,6 +61,9 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public bool HasStatus => Status is not null;
 
+    /// <summary>How many checks in a row have found it, when it is still there and earlier checks were kept.</summary>
+    public FindingStreak? Streak { get; init; }
+
     public bool IsNew => Status == SinceLastCheck.New;
 
     public string StatusText => Status switch
@@ -74,7 +76,7 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     public string StatusTooltip => Status switch
     {
         SinceLastCheck.New => "The last check of this program did not find this.",
-        SinceLastCheck.StillThere => "The last check of this program found this too.",
+        SinceLastCheck.StillThere => Streak?.Said(DateTimeOffset.Now) ?? "The last check of this program found this too.",
         _ => "",
     };
 
@@ -83,6 +85,73 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     public string WhyItMatters => Finding.WhyItMatters;
 
     public string SuggestedFix => Finding.SuggestedFix;
+
+    /// <summary>Where it went wrong and where it showed, under the title: "Crash on line 10. Root cause introduced on line 9."</summary>
+    public string SummaryText => FindingLayout.Summary(Finding) ?? "";
+
+    public bool HasSummary => FindingLayout.Summary(Finding) is not null;
+
+    /// <summary>Why it happened in this program - what was said of this code, before anything about the language.</summary>
+    public string Cause => FindingLayout.Cause(Finding);
+
+    /// <summary>How it got there: the way the value went, call by call, each step indented by how many calls deep it was.</summary>
+    public IReadOnlyList<PathRow> Path => FindingLayout.Path(Finding)
+        .Select(step => new PathRow(FindingLayout.PathLine(step), new System.Windows.Thickness(step.Depth * 18, 1, 0, 1)))
+        .ToList();
+
+    public bool HasPath => FindingLayout.Path(Finding).Count > 0;
+
+    /// <summary>Why the line it stopped on ran: each if, elif, else and while around it, and what its condition read then.</summary>
+    public IReadOnlyList<string> WhyThisLineRan => FindingLayout.WhyThisLineRan(Finding);
+
+    public bool HasWhyThisLineRan => Finding.Branches.Count > 0;
+
+    public string MostLikelyFix => FindingLayout.MostLikelyFix(Finding);
+
+    /// <summary>How sure FixFinder is of the fix, beside how sure it is of the finding: "Fix confidence: Likely - ...".</summary>
+    public string FixConfidenceText => FindingLayout.FixConfidence(Finding) is { } certainty ? $"Fix confidence: {certainty.Labelled}" : "";
+
+    public bool HasFixConfidence => FindingLayout.FixConfidence(Finding) is not null;
+
+    /// <summary>One line of what FixFinder saw that makes it say so, with its mark.</summary>
+    public sealed record MarkedReason(string Mark, string Text, bool Failed);
+
+    public IReadOnlyList<MarkedReason> Reasons =>
+        FindingLayout.WhyItThinksThis(Finding).Select(reason => new MarkedReason(FindingText.Mark(reason.Mark), reason.Text, reason.Mark == StageResult.Failed)).ToList();
+
+    /// <summary>Whether a run recorded what the variables held where the program stopped.</summary>
+    public bool HasTimeline => Finding.Timeline.Count > 0;
+
+    public string TimelineIntroduction => FindingText.TimelineIntroduction;
+
+    public IReadOnlyList<string> TimelineNames => [.. Finding.Timeline.Select(variable => variable.Name)];
+
+    private string? _timelineName;
+
+    /// <summary>The variable whose values are shown: the one the program stopped on, until another is chosen.</summary>
+    public string? SelectedTimelineName
+    {
+        get => _timelineName ??= FindingText.TimelineShownFirst(Finding);
+        set
+        {
+            _timelineName = value;
+            Changed(nameof(SelectedTimelineName), nameof(TimelineRows), nameof(TimelineSummary));
+        }
+    }
+
+    private VariableHistory? SelectedTimeline => Finding.Timeline.FirstOrDefault(variable => variable.Name == SelectedTimelineName);
+
+    /// <summary>One value the chosen variable was given, with the line that gave it.</summary>
+    public sealed record TimelineRow(string GivenBy, string Value);
+
+    public IReadOnlyList<TimelineRow> TimelineRows => SelectedTimeline is { } chosen ? [.. chosen.Changes.Select(change => new TimelineRow(change.GivenBy, change.Value))] : [];
+
+    public string TimelineSummary => SelectedTimeline?.Summary ?? "";
+
+    /// <summary>What this kind of mistake is in general, once what happened in this program has been said.</summary>
+    public string LearnMore => FindingLayout.LearnMore(Finding);
+
+    public bool HasLearnMore => LearnMore.Length > 0;
 
     private FurtherExplanation? _further;
 
@@ -122,6 +191,9 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     /// <summary>The reader's own lines beside the corrected ones. Empty whenever FixFinder has no fix to show.</summary>
     public IReadOnlyList<ChangeLine> ChangeLines => Finding.Change?.Lines ?? [];
 
+    /// <summary>The change as two columns: each line as it is now beside the line as the fix leaves it.</summary>
+    public IReadOnlyList<SideBySideRow> ChangeRows => Finding.Change?.SideBySide ?? [];
+
     public bool HasChange => ChangeLines.Count > 0;
 
     public string CorrectedExample => Finding.CorrectedExample;
@@ -142,8 +214,8 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     private bool _correctionShown;
 
     /// <summary>
-    /// Whether the corrected code is showing. It starts hidden: working the fix out from what is wrong and how to fix it is
-    /// how the idea goes in, and the answer is one press away for whoever wants it.
+    /// Whether the corrected code is showing. In Learn mode it starts hidden: working the fix out from what is wrong and how
+    /// to fix it is how the idea goes in, and the answer is one press away for whoever wants it. In Fix mode it starts shown.
     /// </summary>
     public bool CorrectionShown
     {
@@ -182,7 +254,7 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public bool Follows => FollowsFrom is not null;
 
-    public string FollowsText => FollowsFrom is { } cause ? FindingText.Follows(cause) : "";
+    public string FollowsText => FollowsFrom is { } cause ? FindingText.Follows(cause, Finding) : "";
 
     public bool Explains => LeadsTo.Count > 0;
 
@@ -286,23 +358,67 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string ProblemCodeText => ProblemCode?.Text ?? "";
 
+    /// <summary>The card as text, in the order the card reads: summary, cause, most likely fix, the change, why, then learn more.</summary>
     public string AsText()
     {
-        var lines = new List<string>
+        var lines = new List<string> { $"{SeverityText} ({ConfidenceText}, {KindText}) - {LocationText}", Title };
+
+        if (HasSummary) lines.Add(SummaryText);
+        if (HasFoundBy) lines.Add(FoundByText);
+        if (HasWitness) lines.Add(WitnessText);
+        if (HasConfirmation) lines.Add(ConfirmationText);
+
+        lines.Add("");
+        lines.Add($"Cause: {Cause}");
+        if (HasPath)
         {
-            $"{SeverityText} ({ConfidenceText}, {KindText}) - {LocationText}",
-            Title,
-            "",
-            $"What is wrong: {Explanation}",
-            $"Why it matters: {WhyItMatters}",
-            $"How to fix it: {SuggestedFix}",
-        };
+            lines.Add("How it got there:");
+            lines.AddRange(FindingLayout.Path(Finding).Select(step => "    " + new string(' ', step.Depth * 4) + FindingLayout.PathLine(step)));
+        }
+        if (HasWhyThisLineRan)
+        {
+            lines.Add("Why this line ran:");
+            lines.AddRange(WhyThisLineRan.Select(branch => "    " + branch));
+        }
+        lines.Add($"Most likely fix: {MostLikelyFix}");
+        if (HasFixConfidence) lines.Add(FixConfidenceText);
+
+        if (HasExample)
+        {
+            lines.Add(Finding.ExampleIsFromYourCode ? "Corrected code:" : "A small example of this kind of fix (not your code):");
+            lines.AddRange(CorrectedExample.Split('\n').Select(line => "    " + line));
+        }
+
+        if (HasFixChanges)
+        {
+            lines.Add("What the fix changes:");
+            lines.AddRange(FixChanges.Select(change => "    " + change));
+        }
+
+        if (HasCheck) lines.Add($"Checked: {CheckedText}");
+
+        lines.Add("Why FixFinder thinks this:");
+        lines.AddRange(Reasons.Select(reason => $"    {reason.Mark} {reason.Text}"));
+
+        if (HasTimeline)
+        {
+            lines.Add("Variable timeline:");
+            foreach (var variable in Finding.Timeline)
+            {
+                lines.Add($"    {variable.Name} ({variable.Summary}):");
+                lines.AddRange(variable.Changes.Select(change => $"        {change.GivenBy}: {change.Value}"));
+            }
+        }
 
         if (HasSlice)
         {
-            lines.Insert(lines.Count - 1, "The lines that decide it:");
-            lines.InsertRange(lines.Count - 1, SliceCode.Split('\n').Select(line => "    " + line));
+            lines.Add("The lines that decide it:");
+            lines.AddRange(SliceCode.Split('\n').Select(line => "    " + line));
         }
+
+        lines.Add("Learn more:");
+        if (HasLearnMore) lines.Add($"What this kind of mistake is: {LearnMore}");
+        lines.Add($"Why it matters: {WhyItMatters}");
 
         lines.Add("Step by step:");
         lines.AddRange(Steps.Select(step => $"    {step.NumberText} {step.Text}"));
@@ -321,27 +437,12 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
             lines.AddRange(Words.Select(word => $"    {word.Word} - {word.Meaning}"));
         }
 
-        if (HasConfirmation) lines.Insert(2, ConfirmationText);
-        if (HasWitness) lines.Insert(2, WitnessText);
-        if (HasFoundBy) lines.Insert(2, FoundByText);
-
-        if (HasExample)
-        {
-            lines.Add(Finding.ExampleIsFromYourCode ? "Corrected code:" : "A small example of this kind of fix (not your code):");
-            lines.AddRange(CorrectedExample.Split('\n').Select(line => "    " + line));
-        }
-
-        if (HasCheck) lines.Add($"Checked: {CheckedText}");
-
-        if (HasFixChanges)
-        {
-            lines.Add("What the fix changes:");
-            lines.AddRange(FixChanges.Select(change => "    " + change));
-        }
-
         lines.Add($"The idea behind it: {Concept.Title}" + (HasProblemCode ? $" - problem code {ProblemCodeText}, for FixFinder Learn" : ""));
         lines.Add($"Next time: {NextTime}");
 
         return string.Join(Environment.NewLine, lines);
     }
 }
+
+/// <summary>One step of how it got there, as the card shows it: its line, and how far in it is.</summary>
+public sealed record PathRow(string Text, System.Windows.Thickness Indent);

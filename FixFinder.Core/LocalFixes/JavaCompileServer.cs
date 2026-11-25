@@ -78,6 +78,9 @@ internal sealed class JavaCompileServer
     private readonly object _gate = new();
     private readonly ConcurrentDictionary<long, TaskCompletionSource<Reply?>> _waiting = new();
     private Process? _process;
+
+    /// <summary>The job the server is in, which ends it when FixFinder ends.</summary>
+    private Execution.ProgramJob? _job;
     private long _nextId;
     private bool _answered;
     private bool _broken;
@@ -202,6 +205,10 @@ internal sealed class JavaCompileServer
             };
 
             if (!process.Start()) return null;
+
+            // Held for as long as the server is: it ends when FixFinder ends, however FixFinder ends.
+            _job?.Dispose();
+            _job = Execution.ProgramJob.Hold(process);
 
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();

@@ -32,6 +32,15 @@ public sealed record CheckReport(
 {
     /// <summary>Inputs that take the program each of its ways, and what it printed with each - for a program that reads what is typed.</summary>
     public IReadOnlyList<Analysis.Dynamic.InputTried> Tried { get; init; } = [];
+
+    /// <summary>The algorithms the program's functions have the shape of - a binary search, a bubble sort - with what makes them look so.</summary>
+    public IReadOnlyList<Analysis.Recognition.AlgorithmSeen> Recognised { get; init; } = [];
+
+    /// <summary>
+    /// How the program's own files use each other, a line for each that uses others - `main.py` uses `grades.py` - for a
+    /// Python, JavaScript or TypeScript program of more than one file; nothing otherwise.
+    /// </summary>
+    public IReadOnlyList<string> FileMap { get; init; } = [];
 }
 
 /// <summary>Checks a program's syntax and its logic at the same time, and reports every mistake found with how sure it is and how
@@ -51,6 +60,24 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     private readonly Dictionary<string, Task> _comparing = [];
     private readonly Dictionary<string, IReadOnlyList<string>> _fixChanges = [];
     private readonly Dictionary<string, Task> _verifying = [];
+
+    /// <summary>
+    /// The copies saying why the line a run stopped on ran, each of which builds and runs the program again: run beside the
+    /// copies that try the fixes, rather than after them, and waited for before the report is finished.
+    /// </summary>
+    private readonly List<Task> _explainingWhyTheLineRan = [];
+
+    /// <summary>How many fixes have their file read again with them made, to see which other findings each removes.</summary>
+    private const int MostFixesFollowed = 3;
+
+    /// <summary>Each fix's file read again with the fix made, by the fix it is.</summary>
+    private readonly Dictionary<string, Task> _following = [];
+
+    /// <summary>Each file read on its own as it is, once, for every fix in it to be compared with.</summary>
+    private readonly Dictionary<string, Task<CodeReading?>> _readAsItIs = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The mistakes each fix was found to remove, by the fix it is.</summary>
+    private readonly Dictionary<string, IReadOnlyList<CodeFindingPlace>> _removedByFix = [];
     private readonly Dictionary<string, Verification> _verified = [];
 
     /// <summary>Set for a check of the code alone, which compiles and runs nothing.</summary>
@@ -60,10 +87,20 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     private int _reusedFunctions;
     private int _analysedFunctions;
     private LaunchPlan? _launch;
+
+    /// <summary>The program's own files, in full: the lines of a crash's trace in them are the ones its path shows.</summary>
+    private IReadOnlyList<string> _programFiles = [];
     private CancellationToken _cancellation;
 
     /// <summary>The inputs tried, one for each way through the program that what is typed decides, and what each printed.</summary>
     private IReadOnlyList<Analysis.Dynamic.InputTried> _tried = [];
+    private IReadOnlyList<Analysis.Recognition.AlgorithmSeen> _recognised = [];
+
+    /// <summary>How the program's own files use each other, in words, read when its files are found.</summary>
+    private IReadOnlyList<string> _fileMap = [];
+
+    /// <summary>Whether the program built, once the syntax lane knows: true when it did, false when it did not or was not built.</summary>
+    private Task<bool> _built = Task.FromResult(false);
 
     public CodeLanguage Language { get; init; } = CodeLanguage.Any;
 
@@ -94,7 +131,10 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         using var programsJdk = UseTheProgramsJdk(launch);
         var found = launch.ChosenFile is { } chosen ? ProgramFiles.Read(chosen) : null;
         var files = found?.Files ?? [];
+        _fileMap = found is not null && launch.ChosenFile is { } mapped ? ProgramFiles.UsesSaid(ProgramFiles.Uses(found), mapped) : [];
+        _programFiles = files;
         var builds = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _built = builds.Task;
         _launch = launch;
         _cancellation = cancellationToken;
         foreach (var note in NotesFirst) Note(note);
@@ -118,8 +158,10 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         // Both of these run in the background while the report fills in; the report waits for them so that what it
         // finally says about a fix is what was actually established, not what had been established so far.
         Task[] finishing;
-        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values];
+        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values, .. _explainingWhyTheLineRan, .. _following.Values];
         await Task.WhenAll(finishing);
+        LinkWhatFixesRemove();
+        ConfirmCircularRequires(run);
 
         // Code that needs a later version of its language than the one it ran with: said once, so its errors are not read as mistakes.
         bool hadErrors;
@@ -149,13 +191,17 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             if (_reusedFunctions > 0)
                 logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
 
-            return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, AsPrinted(run)) { Tried = _tried };
+            return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, AsPrinted(run)) { Tried = _tried, Recognised = _recognised, FileMap = _fileMap };
         }
     }
 
-    /// <summary>How many of the findings reported came from reading the code - its patterns and its analyses.</summary>
+    /// <summary>
+    /// How many of the findings reported are mistakes in the code: found by its patterns and its analyses, or by calling a
+    /// sort or a search it was recognised to be.
+    /// </summary>
     private int FoundInTheCode() =>
-        _findings.Count(f => f.RuleId.StartsWith("logic-", StringComparison.Ordinal) || f.RuleId.StartsWith("analysis-", StringComparison.Ordinal));
+        _findings.Count(f => f.RuleId.StartsWith("logic-", StringComparison.Ordinal) || f.RuleId.StartsWith("analysis-", StringComparison.Ordinal) ||
+                             f.RuleId.StartsWith("algorithm-", StringComparison.Ordinal));
 
     /// <summary>
     /// A line the program printed, as it is shown: for a notebook's code, with each place in the script its cells were run
@@ -286,6 +332,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             RecordRun(outcome, launch);
             RecordTests(outcome, launch);
             await RecordWarningsPrintedAsync(outcome, launch, cancellationToken);
+            RecordDoctestFailuresPrinted(outcome, launch);
+            await RepairTestsAsync(outcome, launch, cancellationToken);
+            await MeasureTestsAsync(outcome, launch, cancellationToken);
+            await RepairAssertAsync(outcome, launch, cancellationToken);
+            await TraceMissingValueAsync(outcome, launch, cancellationToken);
+            lock (_gate) _explainingWhyTheLineRan.Add(Task.Run(() => ExplainWhyTheLineRanAsync(outcome, launch, cancellationToken), CancellationToken.None));
             return outcome;
         }
         finally
@@ -294,6 +346,588 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             session.LineCaptured -= Forward;
             session.Progress -= Status;
         }
+    }
+
+    /// <summary>How many of the changes a program's tests missed are each a finding of their own; the rest are counted in the note.</summary>
+    private const int MostMissedChangesReported = 5;
+
+    /// <summary>
+    /// When a file of tests ran and every test passed: how well they check the code they call, measured by small changes
+    /// made to it one at a time in a copy. A note says how many they caught, and each change they missed is a suggestion on
+    /// the line it was made to.
+    /// </summary>
+    private async Task MeasureTestsAsync(SessionOutcome outcome, LaunchPlan launch, CancellationToken cancellationToken)
+    {
+        if (outcome.Run is not { } run || launch.ChosenFile is not { } chosen || launch.Spec is not { } spec || run.Outcome == RunOutcome.TimedOut) return;
+
+        var lines = run.Lines.Select(line => line.Text).ToList();
+        var results = TestReport.ResultsIn(lines);
+        if (results.Count == 0 || results.Any(result => result.Status is not ("SUCCESSFUL" or "SKIPPED"))) return;
+
+        var measuring = new TestRepair();
+        measuring.Log += message => Log?.Invoke(message);
+        measuring.Progress += message => Progress?.Invoke(CheckLane.Syntax, message);
+
+        TestStrengthResult? measured;
+        try
+        {
+            measured = await measuring.WeakSpotsAsync(chosen, results, TestReport.TestsFound(lines), run.Duration, spec.Timeout, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Measuring the tests stopped early: {ex.Message}");
+            return;
+        }
+
+        if (measured is not { Tried: > 0 }) return;
+        foreach (var note in measured.Notes) Note(note);
+
+        var names = string.Join(" and ", measured.CodeUnderTest.Select(Path.GetFileName));
+        var judged = measured.Caught + measured.Missed.Count;
+        Note($"The tests were measured with {Count(measured.Tried, "small change")} to {names}, each made on its own in a copy, of the kinds a mistake " +
+             $"makes: they caught {measured.Caught} of the {judged} that ran" +
+             (measured.NotJudged > 0 ? $", and {Count(measured.NotJudged, "change")} did not build or did not finish, which shows nothing either way" : "") +
+             (measured.Missed.Count > MostMissedChangesReported ? $". The first {MostMissedChangesReported} they missed are listed." : "."));
+
+        foreach (var missed in measured.Missed.Take(MostMissedChangesReported)) Add(FindingFactory.FromMissedChange(missed, measured.Tests));
+    }
+
+    /// <summary>
+    /// When a file of tests ran and some failed: the change to the code they call that makes every one of them pass, found
+    /// by trying small changes and running the tests with each - put on the first failed test's finding, with what running
+    /// the tests showed. When none is found, a note says what was tried.
+    /// </summary>
+    private async Task RepairTestsAsync(SessionOutcome outcome, LaunchPlan launch, CancellationToken cancellationToken)
+    {
+        if (outcome.Run is not { } run || launch.ChosenFile is not { } chosen || launch.Spec is not { } spec) return;
+
+        var lines = run.Lines.Select(line => line.Text).ToList();
+        var results = TestReport.ResultsIn(lines);
+        var found = TestReport.TestsFound(lines);
+        var stoppedForTime = run.Outcome == RunOutcome.TimedOut && (results.Count > 0 || found > 0);
+        if (!results.Any(result => result.Status == "FAILED") && !stoppedForTime) return;
+
+        var repair = new TestRepair();
+        repair.Log += message => Log?.Invoke(message);
+        repair.Progress += message => Progress?.Invoke(CheckLane.Syntax, message);
+
+        TestRepairResult? result;
+        try
+        {
+            result = await repair.RunAsync(chosen, results, found, stoppedForTime, run.Duration, spec.Timeout, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Looking for the change that makes the tests pass stopped early: {ex.Message}");
+            return;
+        }
+
+        if (result is null) return;
+        foreach (var note in result.Notes) Note(note);
+        if (result.Fix is not { } fix) return;
+
+        var checkedBy = TestRepair.Describe(result, chosen);
+        var verified = (result.Compiled ? Verification.NotTested.With(VerificationStage.Compiled, StageResult.Passed, "The tests and the code they call were built with the change.") : Verification.NotTested)
+            .With(VerificationStage.Ran, StageResult.Passed, checkedBy);
+        var source = SourceFile.Read(fix.File);
+
+        IReadOnlyList<Finding> snapshot;
+
+        lock (_gate)
+        {
+            // On the first test that failed - or, when none got as far as failing, on the run that never finished.
+            var index = _findings.FindIndex(finding => finding.RuleId == "test-failed");
+            if (index < 0) index = _findings.FindIndex(finding => finding.RuleId == "timed-out");
+            if (index < 0) return;
+
+            // The one change makes every test pass, so each other failed test says so, rather than seeming to have no fix.
+            var fixedFirst = Regex.Match(_findings[index].Title, @"^Test (?<name>\S+)") is { Success: true } named ? $"the test {named.Groups["name"].Value}" : "the first test that failed";
+            for (var other = index + 1; other < _findings.Count; other++)
+            {
+                if (_findings[other].RuleId != "test-failed") continue;
+                _findings[other] = _findings[other] with
+                {
+                    SuggestedFix = $"{_findings[other].SuggestedFix} The change FixFinder found for {fixedFirst} makes this test pass too.",
+                };
+            }
+
+            _findings[index] = _findings[index] with
+            {
+                SuggestedFix = $"{fix.Title.TrimEnd('.')}. {fix.Explanation}",
+                CorrectedExample = CorrectedCode.From(fix, source),
+                ExampleIsFromYourCode = true,
+                FixCheckedBy = checkedBy,
+                Fix = fix,
+                Change = CodeChange.From(fix, source),
+                CameFrom = FixOrigin.OwnRule(fix.RuleId),
+                Verified = verified,
+            };
+
+            snapshot = Sorted(_findings);
+        }
+
+        FindingsChanged?.Invoke(snapshot);
+    }
+
+    /// <summary>
+    /// When the program stopped at an assert of its own - Java's, run with -ea, a Python program's that does other work too,
+    /// node:assert's - the change that lets it run past it, put on the finding for where it stopped. Not for a run of tests,
+    /// whose own search looks, nor when the output it should print was given, which the search against it uses instead.
+    /// </summary>
+    private async Task RepairAssertAsync(SessionOutcome outcome, LaunchPlan launch, CancellationToken cancellationToken)
+    {
+        if (outcome.Run is not { } run || outcome.Error is not { } error || launch.ChosenFile is not { } chosen || launch.Spec is not { } spec) return;
+        if (Expected is { IsEmpty: false } || TestReport.ResultsIn(run.Lines.Select(line => line.Text)).Count > 0) return;
+        if (error.ShortExceptionType != "AssertionError" && error.ExceptionType?.EndsWith("AssertionError", StringComparison.Ordinal) != true &&
+            error.ExceptionType != Parsing.Parsers.CAssertParser.AssertionFailed) return;
+        if (LocalFixContext.OwnFrame(error) is not { Line: { } assertLine } frame ||
+            !string.Equals(Path.GetFileName(frame.File), Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase)) return;
+
+        var repair = new AssertRepair();
+        repair.Log += message => Log?.Invoke(message);
+        repair.Progress += message => Progress?.Invoke(CheckLane.Syntax, message);
+
+        AssertRepairResult? result;
+        try
+        {
+            result = await repair.RunAsync(chosen, spec, assertLine, run.Duration, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Looking for the change that lets the assert hold stopped early: {ex.Message}");
+            return;
+        }
+
+        if (result is null) return;
+        foreach (var note in result.Notes) Note(note);
+        if (result.Fix is not { } fix) return;
+
+        var checkedBy = AssertRepair.Describe(result, chosen);
+        var verified = (result.Compiled ? Verification.NotTested.With(VerificationStage.Compiled, StageResult.Passed, "The program was built with the change.") : Verification.NotTested)
+            .With(VerificationStage.Ran, StageResult.Passed, checkedBy);
+        var source = SourceFile.Read(fix.File);
+
+        IReadOnlyList<Finding> snapshot;
+
+        lock (_gate)
+        {
+            var index = _findings.FindIndex(finding => finding.Kind == FindingKind.Runtime && finding.Line == assertLine &&
+                                                       string.Equals(Path.GetFileName(finding.File), Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase));
+            if (index < 0) return;
+
+            _findings[index] = _findings[index] with
+            {
+                SuggestedFix = $"{fix.Title.TrimEnd('.')}. {fix.Explanation}",
+                CorrectedExample = CorrectedCode.From(fix, source),
+                ExampleIsFromYourCode = true,
+                FixCheckedBy = checkedBy,
+                Fix = fix,
+                Change = CodeChange.From(fix, source),
+                CameFrom = FixOrigin.OwnRule(fix.RuleId),
+                Verified = verified,
+            };
+
+            snapshot = Sorted(_findings);
+        }
+
+        FindingsChanged?.Invoke(snapshot);
+    }
+
+    /// <summary>
+    /// When a program stopped on a missing value - Python's None, Java's and C#'s null, JavaScript's undefined - where it came from, from
+    /// a second run that records it: the line that gave it, and why a method or function of the program gave it back. Put first
+    /// in the finding for where it stopped, ahead of what the error means in general. Where the finding has no fix of its own,
+    /// the line it stopped on is made to run only when the value is there, kept only when a copy with that change runs without
+    /// the error. For a Python program that stopped on any error, what each variable held, line by line, goes on the finding too.
+    /// </summary>
+    private async Task TraceMissingValueAsync(SessionOutcome outcome, LaunchPlan launch, CancellationToken cancellationToken)
+    {
+        if (outcome.Run is not { } run || outcome.Error is not { } error || launch.ChosenFile is not { } chosen || launch.Spec is not { } spec) return;
+        if (error.Message is not { } message || NotebookScript.Of(chosen) is not null || TestReport.ResultsIn(run.Lines.Select(line => line.Text)).Count > 0) return;
+        if (LocalFixContext.OwnFrame(error) is not { Line: { } crashLine } frame) return;
+
+        Followed? followed;
+
+        try
+        {
+            followed = error.LanguageId switch
+            {
+                "python" => await FollowNoneAsync(launch, run, error, frame, chosen, message, crashLine, cancellationToken),
+                "java" => await FollowNullAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                "node" => await FollowUndefinedAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                "csharp" => await FollowCSharpNullAsync(error, frame, chosen, spec.StandardInput, crashLine, cancellationToken),
+                "go" => await FollowGoNilAsync(error, frame, chosen, spec.StandardInput, crashLine, cancellationToken),
+                "php" => await FollowPhpNullAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                "dart" => await FollowDartNullAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                "lua" => await FollowLuaNilAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                "ruby" => await FollowRubyNilAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                "perl" => await FollowPerlUndefAsync(frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                "rust" => await FollowRustNoneAsync(frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                _ => null,
+            };
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Following the missing value back to where it came from stopped early: {ex.Message}");
+            return;
+        }
+
+        if (followed is not var (cause, source, guard, timeline) || cause is null && timeline.Count == 0) return;
+        var branches = followed.Branches;
+
+        Finding? stopped;
+        lock (_gate)
+        {
+            // The finding the error itself made, before another the run confirmed on the same line.
+            stopped = _findings
+                .Where(finding => finding.Kind == FindingKind.Runtime && finding.Line == crashLine &&
+                                  string.Equals(Path.GetFileName(finding.File), Path.GetFileName(source.Path), StringComparison.OrdinalIgnoreCase))
+                .OrderBy(finding => finding.Error is null)
+                .FirstOrDefault();
+        }
+
+        if (stopped is null) return;
+
+        var traced = cause is null ? stopped with { Timeline = timeline, Branches = branches } : stopped with
+        {
+            Branches = branches,
+            Title = $"{cause.Name} is {cause.Value} on line {cause.CrashLine}" +
+                    (cause.IntroducedLine != cause.CrashLine ? $" - it was made {cause.Value} on line {cause.IntroducedLine}" : ""),
+            Found = cause.Cause,
+            Explanation = string.IsNullOrWhiteSpace(stopped.Explanation) ? cause.Cause : $"{cause.Cause} {stopped.Explanation}",
+            SuggestedFix = stopped.Fix is null ? cause.WhatToDo : stopped.SuggestedFix,
+            RootCause = cause,
+            Timeline = timeline,
+        };
+
+        if (cause is not null && traced.Fix is null && guard is not null)
+        {
+            var verified = await FixRun.CheckAsync(Verification.NotTested, source, guard, error, Expected, cancellationToken, chosen, spec.StandardInput);
+
+            // Kept only when a copy with the check in it ran without the error: a check that moves the crash somewhere else is no fix.
+            if (verified.ResultOf(VerificationStage.Ran) == StageResult.Passed)
+            {
+                traced = traced with
+                {
+                    SuggestedFix = $"{guard.Title}. {guard.Explanation}",
+                    CorrectedExample = CorrectedCode.From(guard, source),
+                    ExampleIsFromYourCode = true,
+                    FixCheckedBy = verified.Summary,
+                    Fix = guard,
+                    Change = CodeChange.From(guard, source),
+                    CameFrom = FixOrigin.OwnRule(guard.RuleId),
+                    Verified = verified,
+                };
+            }
+        }
+
+        IReadOnlyList<Finding> snapshot;
+        lock (_gate)
+        {
+            var index = _findings.IndexOf(stopped);
+            if (index < 0) return;
+
+            _findings[index] = traced;
+            snapshot = Sorted(_findings);
+        }
+
+        FindingsChanged?.Invoke(snapshot);
+    }
+
+    /// <summary>
+    /// Why the line a Java, JavaScript, TypeScript, C#, Go, Rust, PHP, Dart, Lua, Ruby or Perl program stopped on ran: the ifs,
+    /// else ifs, elses and whiles around it and what their conditions read, from a copy of the program that prints them, put on
+    /// the finding for where it stopped. A Python program's come from the run that records its variables.
+    /// </summary>
+    private async Task ExplainWhyTheLineRanAsync(SessionOutcome outcome, LaunchPlan launch, CancellationToken cancellationToken)
+    {
+        if (outcome.Run is null || outcome.Error is not { } error || launch.ChosenFile is not { } chosen || launch.Spec is not { } spec) return;
+        if (NotebookScript.Of(chosen) is not null || LocalFixEngine.IsCompileError(error) || LocalFixEngine.IsSyntaxPhase(error)) return;
+        if (LocalFixContext.OwnFrame(error) is not { Line: { } crashLine, File: { } named }) return;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFileName(file), Path.GetFileName(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return;
+        if (Analysis.Dynamic.BraceBranches.DialectFor(file) is not { } dialect || SourceFile.Read(file) is not { } source) return;
+
+        Finding? stopped;
+        lock (_gate) stopped = StoppedAt(crashLine, file);
+        if (stopped is null || stopped.Branches.Count > 0) return;
+
+        IReadOnlyList<BranchTaken>? branches;
+        try
+        {
+            branches = await Analysis.Dynamic.BraceBranches.TraceAsync(dialect, chosen, source, spec.StandardInput, crashLine,
+                copy => copy.LanguageId == error.LanguageId && copy.ShortExceptionType == error.ShortExceptionType && copy.Message == error.Message, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Finding out why the line it stopped on ran stopped early: {ex.Message}");
+            return;
+        }
+
+        if (branches is not { Count: > 0 }) return;
+
+        IReadOnlyList<Finding> snapshot;
+        lock (_gate)
+        {
+            // Found again: the finding may have been traced, or joined with another, while the copy ran.
+            if (StoppedAt(crashLine, file) is not { Branches.Count: 0 } now) return;
+            _findings[_findings.IndexOf(now)] = now with { Branches = branches };
+            snapshot = Sorted(_findings);
+        }
+
+        FindingsChanged?.Invoke(snapshot);
+    }
+
+    /// <summary>The finding the run that stopped on that line of that file made, before another the run confirmed on the same line.</summary>
+    private Finding? StoppedAt(int crashLine, string file) =>
+        _findings
+            .Where(finding => finding.Kind == FindingKind.Runtime && finding.Line == crashLine &&
+                              string.Equals(Path.GetFileName(finding.File), Path.GetFileName(file), StringComparison.OrdinalIgnoreCase))
+            .OrderBy(finding => finding.Error is null)
+            .FirstOrDefault();
+
+    /// <summary>
+    /// What each variable of a Python program held where it stopped, from a second run - and, when it stopped on None, where
+    /// the None came from and the change that skips it on the line it stopped on.
+    /// </summary>
+    private static async Task<Followed?> FollowNoneAsync(LaunchPlan launch, TargetRunResult run,
+        ParsedError error, ErrorFrame frame, string chosen, string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (error.ShortExceptionType is not { } type || LocalFixEngine.IsSyntaxPhase(error)) return null;
+        if (!string.Equals(Path.GetFullPath(frame.File ?? ""), Path.GetFullPath(chosen), StringComparison.OrdinalIgnoreCase)) return null;
+        if (PythonInterpreter(launch) is not { } python || SourceFile.Read(chosen) is not { } source) return null;
+
+        // As long again as the run that failed took, and then some: the second run records every line, which is slower.
+        var timeout = TimeSpan.FromSeconds(Math.Clamp(run.Duration.TotalSeconds * 4 + 10, 10, 60));
+        var traced = await Analysis.Dynamic.PythonNoneOrigin.TraceAsync(python, chosen, launch.Spec?.StandardInput ?? "", type, message, crashLine,
+            frame.Symbol ?? "<module>", timeout, cancellationToken);
+        if (traced is null) return null;
+
+        var guard = traced.Cause is { } cause && Analysis.Dynamic.PythonNoneOrigin.DoingWith(message, cause.Name) is { } doing
+            ? Analysis.Dynamic.PythonNoneOrigin.GuardFor(cause, source, doing)
+            : null;
+        return new Followed(traced.Cause, source, guard, traced.Timeline) { Branches = traced.Branches };
+    }
+
+    /// <summary>
+    /// Where a Java program's null came from, and the change that skips it on the line it stopped on. Java's trace names the
+    /// file by its name alone, so the program's own file of that name is the one it stopped in.
+    /// </summary>
+    private static async Task<Followed?> FollowNullAsync(ParsedError error, ErrorFrame frame, string chosen, string? typed,
+        string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (error.ShortExceptionType != "NullPointerException" || frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFileName(file), Path.GetFileName(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source) return null;
+
+        // The line it was called from, when the call was made in the same file: what gave a parameter its null.
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1).FirstOrDefault();
+        var calledFrom = below is { Line: { } line, File: { } callerFile } && string.Equals(Path.GetFileName(callerFile), Path.GetFileName(file), StringComparison.OrdinalIgnoreCase)
+            ? line
+            : (int?)null;
+
+        if (await Analysis.Dynamic.JavaNullOrigin.TraceAsync(chosen, file, typed, message, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
+
+        var doing = string.Format(Analysis.Dynamic.JavaNullOrigin.DoingIn(message), cause.Name);
+        return new Followed(cause, source, Analysis.Dynamic.JavaNullOrigin.GuardFor(cause, source, doing), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a C# program's null came from, and the change that skips it on the line it stopped on. .NET's message names nothing,
+    /// so what was null is the one variable the line reads from that the program sets, or is given.
+    /// </summary>
+    private static async Task<Followed?> FollowCSharpNullAsync(ParsedError error, ErrorFrame frame,
+        string chosen, string? typed, int crashLine, CancellationToken cancellationToken)
+    {
+        if (error.ShortExceptionType != "NullReferenceException" || frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFullPath(file), Path.GetFullPath(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || Analysis.Dynamic.CSharpNullOrigin.Read(source, crashLine) is not var (_, doing)) return null;
+
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1).FirstOrDefault();
+        var calledFrom = below is { Line: { } called, File: { } callerFile } && string.Equals(Path.GetFullPath(callerFile), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase)
+            ? called
+            : (int?)null;
+
+        if (await Analysis.Dynamic.CSharpNullOrigin.TraceAsync(chosen, file, typed, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
+
+        return new Followed(cause, source, Analysis.Dynamic.CSharpNullOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a Go program's nil came from, and the change that skips it on the line it stopped on. Go's panic names nothing,
+    /// so what was nil is the one variable the line reads a field through, or calls a method on, that the program sets or is given.
+    /// </summary>
+    private static async Task<Followed?> FollowGoNilAsync(ParsedError error, ErrorFrame frame,
+        string chosen, string? typed, int crashLine, CancellationToken cancellationToken)
+    {
+        if (error.Message != Analysis.Dynamic.GoNilOrigin.Message || frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFullPath(file), Path.GetFullPath(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || Analysis.Dynamic.GoNilOrigin.Read(source, crashLine) is not var (_, doing)) return null;
+
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1).FirstOrDefault();
+        var calledFrom = below is { Line: { } called, File: { } callerFile } && string.Equals(Path.GetFullPath(callerFile), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase)
+            ? called
+            : (int?)null;
+
+        if (await Analysis.Dynamic.GoNilOrigin.TraceAsync(chosen, file, typed, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
+
+        return new Followed(cause, source, Analysis.Dynamic.GoNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a Rust program's None came from, and the change that skips it on the line it stopped on. Rust's panic gives the
+    /// column of the unwrap, so what held None is the name - or the call - just before it.
+    /// </summary>
+    private static async Task<Followed?> FollowRustNoneAsync(ErrorFrame frame,
+        string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (message != Analysis.Dynamic.RustNoneOrigin.Message || frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFileName(file), Path.GetFileName(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return null;
+        if (Analysis.Dynamic.RustNoneOrigin.Read(line, frame.Column) is not var (doing, _, _)) return null;
+
+        if (await Analysis.Dynamic.RustNoneOrigin.TraceAsync(chosen, file, typed, crashLine, frame.Column, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
+
+        return new Followed(cause, source, Analysis.Dynamic.RustNoneOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a Perl program's undef came from, and the change that skips it on the line it stopped on. Perl's message names the
+    /// method called on undef, so what held it is the variable the line calls it on; its die gives no calls to follow back.
+    /// </summary>
+    private static async Task<Followed?> FollowPerlUndefAsync(ErrorFrame frame,
+        string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFileName(file), Path.GetFileName(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return null;
+        if (Analysis.Dynamic.PerlUndefOrigin.Read(message, CodeText.Mask(line, Syntax.Perl)) is not var (doing, _, _)) return null;
+
+        if (await Analysis.Dynamic.PerlUndefOrigin.TraceAsync(chosen, file, typed, message, crashLine, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
+
+        return new Followed(cause, source, Analysis.Dynamic.PerlUndefOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a Ruby program's nil came from, and the change that skips it on the line it stopped on. Ruby's message names the
+    /// method called on nil, so what held nil is the variable the line calls it on.
+    /// </summary>
+    private static async Task<Followed?> FollowRubyNilAsync(ParsedError error, ErrorFrame frame,
+        string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFileName(file), Path.GetFileName(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return null;
+        if (Analysis.Dynamic.RubyNilOrigin.Read(message, line) is not var (doing, _, _)) return null;
+
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1).FirstOrDefault();
+        var calledFrom = below is { Line: { } called, File: { } callerFile } && string.Equals(Path.GetFileName(callerFile), Path.GetFileName(file), StringComparison.OrdinalIgnoreCase)
+            ? called
+            : (int?)null;
+
+        if (await Analysis.Dynamic.RubyNilOrigin.TraceAsync(chosen, file, typed, message, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
+
+        return new Followed(cause, source, Analysis.Dynamic.RubyNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a Lua program's nil came from, and the change that skips it on the line it stopped on. Lua's message names the
+    /// variable that held nil.
+    /// </summary>
+    private static async Task<Followed?> FollowLuaNilAsync(ParsedError error, ErrorFrame frame,
+        string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFileName(file), Path.GetFileName(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return null;
+        if (Analysis.Dynamic.LuaNilOrigin.Read(message, CodeText.Mask(line, Syntax.Lua)) is not var (doing, _)) return null;
+
+        // Lua's traceback names again the place its message names - parameter.lua:2: in local 'greeting' - before the call.
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1)
+            .SkipWhile(each => each.Line == frame.Line && string.Equals(Path.GetFileName(each.File), Path.GetFileName(frame.File), StringComparison.OrdinalIgnoreCase))
+            .FirstOrDefault();
+        var calledFrom = below is { Line: { } called, File: { } callerFile } && string.Equals(Path.GetFileName(callerFile), Path.GetFileName(file), StringComparison.OrdinalIgnoreCase)
+            ? called
+            : (int?)null;
+
+        if (await Analysis.Dynamic.LuaNilOrigin.TraceAsync(chosen, file, typed, message, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
+
+        return new Followed(cause, source, Analysis.Dynamic.LuaNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a Dart program's null came from, and the change that skips it on the line it stopped on. Dart's trace gives the
+    /// column of the ! that met null, so what was null is the name - or the call - just before it.
+    /// </summary>
+    private static async Task<Followed?> FollowDartNullAsync(ParsedError error, ErrorFrame frame,
+        string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (message != Analysis.Dynamic.DartNullOrigin.Message || frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFullPath(file), Path.GetFullPath(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return null;
+        if (Analysis.Dynamic.DartNullOrigin.Read(line, frame.Column) is not var (doing, _, _)) return null;
+
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1).FirstOrDefault();
+        var calledFrom = below is { Line: { } called, File: { } callerFile } && string.Equals(Path.GetFullPath(callerFile), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase)
+            ? called
+            : (int?)null;
+
+        if (await Analysis.Dynamic.DartNullOrigin.TraceAsync(chosen, file, typed, crashLine, frame.Column, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
+
+        return new Followed(cause, source, Analysis.Dynamic.DartNullOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a PHP program's null came from, and the change that skips it on the line it stopped on. PHP's message names the
+    /// method called on null, or the property set on it, so what held null is the variable the line uses it on.
+    /// </summary>
+    private static async Task<Followed?> FollowPhpNullAsync(ParsedError error, ErrorFrame frame,
+        string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFullPath(file), Path.GetFullPath(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return null;
+        if (Analysis.Dynamic.PhpNullOrigin.Read(message, CodeText.Mask(line, Syntax.CLike)) is not var (doing, _, _)) return null;
+
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1).FirstOrDefault();
+        var calledFrom = below is { Line: { } called, File: { } callerFile } && string.Equals(Path.GetFullPath(callerFile), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase)
+            ? called
+            : (int?)null;
+
+        if (await Analysis.Dynamic.PhpNullOrigin.TraceAsync(chosen, file, typed, message, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
+
+        return new Followed(cause, source, Analysis.Dynamic.PhpNullOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a JavaScript program's undefined or null came from, and the change that skips it on the line it stopped on. The
+    /// column Node's trace gives says which part of the line read from it.
+    /// </summary>
+    private static async Task<Followed?> FollowUndefinedAsync(ParsedError error, ErrorFrame frame, string chosen, string? typed,
+        string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (error.ShortExceptionType != "TypeError" || frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFullPath(file), Path.GetFullPath(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return null;
+
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1).FirstOrDefault();
+        var calledFrom = below is { Line: { } called, File: { } callerFile } && string.Equals(Path.GetFullPath(callerFile), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase)
+            ? called
+            : (int?)null;
+
+        if (await Analysis.Dynamic.JavaScriptMissingOrigin.TraceAsync(chosen, file, typed, message, crashLine, frame.Column, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause || Analysis.Dynamic.JavaScriptMissingOrigin.Read(message, line, frame.Column) is not var (doing, _, _, _))
+            return new Followed(null, source, null, traced.Timeline);
+
+        return new Followed(cause, source, Analysis.Dynamic.JavaScriptMissingOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>
@@ -323,6 +957,42 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             Add(FindingFactory.FromError(warning, FindingKind.Runtime, Severity.Warning, Confidence.Certain, chosen, fix) with
             {
                 Title = $"It printed {CarriedOnPast.WhatItWas(warning) ?? "a warning"} and carried on: {warning.Message ?? FindingFactory.TitleOf(warning)}",
+            });
+        }
+    }
+
+    /// <summary>
+    /// A Python program that runs its own doctests with doctest.testmod() and then does its own work carries on past an
+    /// example that failed: doctest only prints it. Each one printed is a finding on that example's own line, as a doctest
+    /// run by itself is.
+    /// </summary>
+    private void RecordDoctestFailuresPrinted(SessionOutcome outcome, LaunchPlan launch)
+    {
+        if (outcome.Run is not { } run || launch.ChosenFile is not { } chosen || DoctestExamplesFailed(outcome, chosen) == 0) return;
+
+        foreach (var failure in DoctestReport.FailuresIn(run.Lines))
+        {
+            var what = failure.Exception is { } raised
+                ? $"stopped with {raised}"
+                : $"did not give what it shows: {failure.Example}: expected {failure.Expected}, got {failure.Got}";
+
+            Add(new Finding
+            {
+                Kind = FindingKind.Runtime,
+                Severity = Severity.Error,
+                Confidence = Confidence.Certain,
+                File = File.Exists(failure.File) ? failure.File : chosen,
+                Line = failure.Line,
+                Title = failure.Exception is { } stopped
+                    ? $"An example in the docstring of {failure.Name} stopped with {stopped}"
+                    : $"An example in the docstring of {failure.Name} failed: {failure.Example}: expected {failure.Expected}, got {failure.Got}",
+                Explanation = $"doctest.testmod() ran the examples in the docstring of {failure.Name} as the program ran, and the one on line " +
+                              $"{failure.Line} {what}. doctest only prints an example that fails, so the program carried on after it.",
+                WhyItMatters = "A doctest that fails is a check the code did not pass: either the code does not do what the example shows, " +
+                               "or the example shows the wrong thing.",
+                SuggestedFix = "Compare what the example shows with what the code gives back for it, and follow the code to where the two part.",
+                CorrectedExample = "",
+                RuleId = "doctest-failed",
             });
         }
     }
@@ -369,6 +1039,17 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
     [GeneratedRegex(@"\bvoid\s+main\s*\(")]
     private static partial Regex DeclaresMain();
+
+    [GeneratedRegex(@"^\s*package\s+(?<name>[A-Za-z_]\w*)")]
+    private static partial Regex GoPackageLine();
+
+    /// <summary>
+    /// go run's words for a file whose package is not main - one of a package's files of functions, which is not a program
+    /// - and nothing that ran at all, let alone crashed.
+    /// </summary>
+    private static bool NotAMainPackage(ParsedError error, string chosen) =>
+        Path.GetExtension(chosen).Equals(".go", StringComparison.OrdinalIgnoreCase) &&
+        (error.Message ?? "").Contains("is not a main package", StringComparison.OrdinalIgnoreCase);
 
     [GeneratedRegex(@"(?m)^\s*import\s+(?:static\s+)?(?<name>javafx\.|javax\.swing\.|java\.net\.ServerSocket\b|java\.net\.\*|com\.sun\.net\.httpserver\.|org\.springframework\.boot\.)")]
     private static partial Regex RunsUntilStoppedImport();
@@ -575,6 +1256,17 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// </summary>
     private static string? NothingToRun(ParsedError error, string chosen)
     {
+        if (NotAMainPackage(error, chosen))
+        {
+            var package = SourceFile.Read(chosen)?.Lines.Select(line => GoPackageLine().Match(line)).FirstOrDefault(found => found.Success)?.Groups["name"].Value;
+            var ownTests = Path.ChangeExtension(chosen, null) + "_test.go";
+            var tests = File.Exists(ownTests) ? $" - such as its tests in {Path.GetFileName(ownTests)}, which go test runs and FixFinder does not" : "";
+
+            return $"{Path.GetFileName(chosen)} is part of {(package is { Length: > 0 } ? $"the Go package {package}" : "a Go package")}, not a program, so " +
+                   $"there is nothing in it to run: Go runs only package main, starting at its func main(). Its functions are there for other code to call{tests}. " +
+                   "The code in this file was still read for mistakes.";
+        }
+
         if (error.LanguageId == "scala" && error.Message == "No main class found")
         {
             return $"{Path.GetFileName(chosen)} has no main, so there is nothing in it to run: a Scala program starts at def main(args: Array[String]): Unit " +
@@ -607,9 +1299,18 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                "such as void main(). Choose the file of the program that has one. The code in this file was still read for mistakes.";
     }
 
-    /// <summary>The framework a file's tests are run with: for Python, pytest or unittest, whichever the file is written for; JUnit for Java.</summary>
+    /// <summary>
+    /// The framework a file's tests are run with: for Python, pytest, unittest or doctest, whichever the file is written for;
+    /// node:test for JavaScript and TypeScript; JUnit for Java.
+    /// </summary>
     private static string TestFrameworkOf(string chosen) =>
-        !IsPython(chosen) ? "JUnit" : PythonTests.FrameworkOf(chosen) == PythonTests.Framework.Pytest ? "pytest" : "unittest";
+        NodeTests.AreItsTests(chosen) ? NodeTests.RunnerName : NodeTests.ChecksWithConsoleAssert(chosen) ? NodeTests.ConsoleAssertName : !IsPython(chosen) ? "JUnit" : PythonTests.FrameworkOf(chosen) switch
+    {
+        PythonTests.Framework.Pytest => "pytest",
+        PythonTests.Framework.Doctest => "doctest",
+        PythonTests.Framework.Asserts => "assert",
+        _ => "unittest",
+    };
 
     private static bool IsPython(string file) => Path.GetExtension(file).ToLowerInvariant() is ".py" or ".pyw";
 
@@ -651,6 +1352,10 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 "pytest" => $"pytest found no tests to run in {name}. By default it runs the functions whose names begin with test, and " +
                             "the methods whose names begin with test of the classes whose names begin with Test and that have no __init__.",
                 "unittest" => $"unittest found no tests to run in {name}. It runs the methods of a unittest.TestCase class whose names begin with test.",
+                "doctest" => $"doctest found no examples to run in {name}. It runs the >>> examples in the docstrings of the module and of the " +
+                             "functions and classes defined in it.",
+                NodeTests.RunnerName => $"node:test found no tests to run in {name}. It runs what is given to test() or it(), and to those " +
+                                        "inside describe().",
                 _ => $"JUnit found no tests to run in {name}. JUnit 5 runs methods marked @Test that are not private and return nothing; " +
                      "JUnit 4 needs them public.",
             });
@@ -659,7 +1364,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var skipped = results.Count(result => result.Status is "SKIPPED" or "ABORTED");
         if (skipped > 0)
         {
-            Note($"{Count(skipped, "test")} {(skipped == 1 ? "was" : "were")} skipped{(IsPython(chosen) ? "" : ", or stopped by an assumption that did not hold")}, " +
+            Note($"{Count(skipped, "test")} {(skipped == 1 ? "was" : "were")} skipped{(framework == "JUnit" ? ", or stopped by an assumption that did not hold" : "")}, " +
                  $"so {framework} did not say whether {(skipped == 1 ? "it passes" : "they pass")}.");
         }
 
@@ -713,25 +1418,37 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         return $"\"{reason}\"{(settings is null ? "" : $" - and it takes options from {settings} as well as from how it is run")}.";
     }
 
+    private static string UpperFirst(string text) => text.Length > 0 && char.IsLower(text[0]) ? char.ToUpperInvariant(text[0]) + text[1..] : text;
+
     /// <summary>A failed test as a finding: which test, what its framework said, and the lines the failure came through.</summary>
     private static Finding TestFinding(TestReport.TestResult test, string chosen, string framework)
     {
         var python = IsPython(chosen);
 
+        // Python's frames, and Node.js's, name each file in full; JUnit's name the class and the file's name alone.
+        var framesNameFilesInFull = python || framework is NodeTests.RunnerName or NodeTests.ConsoleAssertName;
+
         // Python's frames name the file in full, and unittest's own are left out by its launcher; Java's name the class and file.
-        bool InTheTestFile((string Class, string Method, string? File, int Line) frame) => python
+        bool InTheTestFile((string Class, string Method, string? File, int Line) frame) => framesNameFilesInFull
             ? frame.File is { } file && string.Equals(Path.GetFullPath(file), Path.GetFullPath(chosen), StringComparison.OrdinalIgnoreCase)
             : test.ClassName.Length > 0 && (frame.Class == test.ClassName || frame.Class.StartsWith(test.ClassName + "$", StringComparison.Ordinal)) &&
               string.Equals(frame.File, Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase);
 
-        var own = test.Frames.FirstOrDefault(frame => InTheTestFile(frame) && frame.Line > 0);
+        // A doctest is in the file of the code its examples call, and so is a program's own assert: its own line is the
+        // outermost of the file's - its example's, or the assert's.
+        var doctest = framework == "doctest";
+        var checksItself = framework == "assert";
+        var checksWithConsoleAssert = framework == NodeTests.ConsoleAssertName;
+        var own = doctest || checksItself || checksWithConsoleAssert
+            ? test.Frames.LastOrDefault(frame => InTheTestFile(frame) && frame.Line > 0)
+            : test.Frames.FirstOrDefault(frame => InTheTestFile(frame) && frame.Line > 0);
 
-        var thrownAt = test.Frames.FirstOrDefault(frame => frame.Line > 0 && (python || (!frame.Class.StartsWith("org.junit", StringComparison.Ordinal) &&
+        var thrownAt = test.Frames.FirstOrDefault(frame => frame.Line > 0 && (framesNameFilesInFull || (!frame.Class.StartsWith("org.junit", StringComparison.Ordinal) &&
             !frame.Class.StartsWith("org.opentest4j", StringComparison.Ordinal) && !frame.Class.StartsWith("java.", StringComparison.Ordinal) &&
             !frame.Class.StartsWith("jdk.", StringComparison.Ordinal) && !frame.Class.StartsWith("sun.", StringComparison.Ordinal))));
 
         var exception = test.Exception ?? "";
-        var assertion = python
+        var assertion = framesNameFilesInFull
             ? exception == "AssertionError"
             : exception is "java.lang.AssertionError" or "junit.framework.AssertionFailedError" or "org.junit.ComparisonFailure" ||
               exception.StartsWith("org.opentest4j.", StringComparison.Ordinal) || exception.EndsWith(".AssertionFailedError", StringComparison.Ordinal);
@@ -740,7 +1457,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         // Said in one line, its runs of spaces made one; a title takes only its first line, as a long message is best read whole.
         var message = test.Message is { Length: > 0 } said && said != "null" ? Regex.Replace(said.Trim(), @"\s+", " ") : null;
-        var firstLine = test.Message is { Length: > 0 } && message is not null ? test.Message.Trim().Split('\n')[0].Trim() : null;
+        // A first line that ends with a colon says what follows it - node:assert's "Expected values to be strictly equal:" - so the
+        // title goes on to the next line said: '2:1' !== 'First'.
+        var saidLines = test.Message is { Length: > 0 } && message is not null
+            ? test.Message.Trim().Split('\n').Select(line => line.Trim()).Where(line => line.Length > 0).ToList()
+            : [];
+        var firstLine = saidLines.Count == 0 ? null : saidLines[0].EndsWith(':') && saidLines.Count > 1 ? $"{saidLines[0]} {saidLines[1]}" : saidLines[0];
         var shown = firstLine is null ? "" : $": {(firstLine.Length <= 120 ? firstLine : firstLine[..117] + "...")}";
 
         // A Python subtest is named with what it was run with: test_shares (people=4); a pytest test with its parameters: test_shares[4-20].
@@ -750,6 +1472,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var stoppedWith = $"{(exception.Length > 0 ? exception : "a failure")}{(message is null ? "" : $" ({message})")}" +
                           (thrownAt is { } at && at != own ? $", {thrown} in {at.Class}.{at.Method} on line {at.Line} of {Path.GetFileName(at.File)}" : line);
         var stoppedWithName = exception.Length > 0 ? exception.Split('.')[^1] : null;
+
+        // A doctest is the examples in a docstring, and the first that did not give what it shows is what failed.
+        var called = doctest ? $"An example in the docstring of {name}" : $"Test {name}";
 
         // Setting up for a test is not the test, and nor is cleaning up after it: when setting up fails, the test does not run
         // at all; when cleaning up fails, it has run. unittest names what failed - setUpClass (test_bank.BankTests) - and pytest
@@ -770,6 +1495,25 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             ("TEARDOWN-FAILED", _) => (
                 $"{name} {(stoppedWithName is null ? "failed" : $"stopped with {stoppedWithName}")}{shown}",
                 $"{framework} ran the tests, and then cleaning up after them stopped: {test.Name} stopped with {stoppedWith}."),
+            _ when checksWithConsoleAssert => (
+                $"{UpperFirst(name)} found what it checks false{shown}",
+                $"The program checks itself with console.assert, and {name} found what it checks false" +
+                (message is null ? "." : $" - it was given to say: {message}.") +
+                " console.assert only prints \"Assertion failed\" and carries on, so the program went on past it with the value it says is wrong."),
+            _ when checksItself && assertion => (
+                $"{UpperFirst(name)} failed{shown}",
+                $"The program checks itself with assert, and {name} did not hold{(message is null ? "." : $": {message}.")}"),
+            _ when checksItself => (
+                $"{UpperFirst(name)} stopped with {stoppedWithName}{shown}",
+                $"The program checks itself with assert, and {name} stopped with {exception}{(message is null ? "" : $" ({message})")}" +
+                (thrownAt is { } raisedIn && raisedIn != own ? $", raised in {raisedIn.Method} on line {raisedIn.Line} of {Path.GetFileName(raisedIn.File)}." : ".")),
+            _ when doctest && exception.Length == 0 => (
+                $"{called} failed{shown}",
+                $"doctest ran the examples in the docstring of {name}, and the one{line} did not give what it shows{(message is null ? "." : $": {message}.")}"),
+            _ when doctest => (
+                $"{called} stopped with {stoppedWithName}{shown}",
+                $"doctest ran the examples in the docstring of {name}, and the one{line} stopped with {exception}{(message is null ? "" : $" ({message})")}" +
+                (thrownAt is { } raisedAt && raisedAt != own ? $", raised in {raisedAt.Class}.{raisedAt.Method} on line {raisedAt.Line} of {Path.GetFileName(raisedAt.File)}." : ".")),
             _ when assertion => (
                 $"Test {name} failed{shown}",
                 $"{framework} ran the test {test.Name}, and the assertion{line} did not hold{(message is null ? "." : $": {message}.")}"),
@@ -799,6 +1543,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                   "or the test expects the wrong thing.",
             SuggestedFix = cleaningUp
                 ? $"Go to the line the exception was {thrown} on, in the code that cleans up after the tests, and put right what failed there."
+                : doctest && exception.Length == 0
+                    ? "Compare what the example shows with what the code gives back for it, and follow the code to where the two part."
                 : assertion || failedByPytest || exception.Length == 0
                     ? "Compare what the test expects with what the code it calls gives back, and follow that code to where the two part."
                     : $"Go to the line the exception was {thrown} on - in the code the test calls, if it came from there - and put right what failed there.",
@@ -808,7 +1554,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     }
 
     /// <summary>
-    /// Whether an error came from FixFinder's own test launcher - JUnit's for Java, unittest's or pytest's for Python - rather
+    /// Whether an error came from FixFinder's own test launcher - JUnit's for Java, unittest's, pytest's or doctest's for Python - rather
     /// than from the program: the launcher is where it was raised, or the nearest place to that of the program's own.
     /// </summary>
     /// <remarks>
@@ -819,7 +1565,51 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         new[] { error.CulpritFrame?.File, error.Frames.FirstOrDefault()?.File }.OfType<string>().Any(file =>
             Path.GetFileName(file).Equals(JavaTests.LauncherClass + ".java", StringComparison.OrdinalIgnoreCase) ||
             Path.GetFileName(file).StartsWith(PythonTests.LauncherPrefix, StringComparison.OrdinalIgnoreCase) ||
-            Path.GetFileName(file).StartsWith(PythonTests.PytestLauncherPrefix, StringComparison.OrdinalIgnoreCase));
+            Path.GetFileName(file).StartsWith(PythonTests.PytestLauncherPrefix, StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFileName(file).StartsWith(PythonTests.DoctestLauncherPrefix, StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFileName(file).StartsWith(PythonTests.AssertLauncherPrefix, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Why the program's own module was not found: where it is, and where Python looked instead.</summary>
+    private static string OwnModuleExplanation(string ownModule, string chosen)
+    {
+        var module = Path.GetFileNameWithoutExtension(ownModule);
+        var folder = Path.GetDirectoryName(ownModule)!;
+
+        return $"{module} is the program's own module - {Path.GetFileName(ownModule)} in {folder} - not a package to install. Python looks " +
+               $"for modules beside the file it runs, in {Path.GetDirectoryName(chosen)}, and in the folders it is told to look in, and " +
+               $"{folder} is none of them, so the import found nothing. A package published as {module} would be somebody else's code.";
+    }
+
+    /// <summary>
+    /// How to have Python find the program's own module: where to move it - or, for a program, running it as a module from
+    /// the folder the module is in, and for tests pytest runs, pytest's setting that says where to look.
+    /// </summary>
+    private static string OwnModuleFix(string ownModule, string importing, string chosen)
+    {
+        var folder = Path.GetDirectoryName(ownModule)!;
+        var beside = $"Move {Path.GetFileName(ownModule)} to where Python looks for it: beside {Path.GetFileName(importing)}";
+        var framework = PythonTests.FrameworkOf(chosen);
+
+        if (framework == PythonTests.Framework.Doctest) return beside + ".";
+
+        if (framework == PythonTests.Framework.None)
+        {
+            // python -m scripts.run, started in the folder above scripts, has Python look in the folder it was started in.
+            var fromFolder = Path.GetRelativePath(folder, chosen);
+            if (fromFolder.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(fromFolder)) return beside + ".";
+
+            var asModule = Path.ChangeExtension(fromFolder, null).Replace(Path.DirectorySeparatorChar, '.');
+            return $"{beside}. Or run {Path.GetFileName(chosen)} as a module, started in {folder}, where Python then looks too: python -m {asModule}";
+        }
+
+        var moveIt = $"{beside}, or into a folder above it - which FixFinder looks in, and so does python -m pytest started there.";
+        if (framework != PythonTests.Framework.Pytest) return moveIt;
+
+        var holdingBoth = ProgramCopy.FolderHoldingAll([Path.GetDirectoryName(importing)!, folder]);
+        var relative = Path.GetRelativePath(holdingBoth, folder).Replace('\\', '/');
+
+        return $"{moveIt} Or have pytest look in {folder}: a pytest.ini in {holdingBoth} holding [pytest] and, below it, pythonpath = {relative}.";
+    }
 
     /// <summary>Whether an expected-output run is the very run the syntax check made: the same input typed in.</summary>
     private static bool SameRunAsTheCheck(ExpectedRun run, LaunchPlan launch) =>
@@ -915,6 +1705,22 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 return;
             }
 
+            // The program's own module, in a folder Python was not told to look in: a package published under its name would
+            // be somebody else's code, so installing one is never what puts this right.
+            if (kind == FindingKind.Runtime && MissingModule.OwnModuleOutOfReach(error) is { } ownModule &&
+                LocalFixContext.OwnFrame(error)?.File is { } importing)
+            {
+                Add(FindingFactory.FromError(error, kind, Severity.Error, Confidence.Certain, chosen) with
+                {
+                    Title = RunTitle(error, outcome.Run),
+                    Explanation = OwnModuleExplanation(ownModule, chosen),
+                    SuggestedFix = OwnModuleFix(ownModule, importing, chosen),
+                    CorrectedExample = "",
+                    RuleId = "python-own-module-out-of-reach",
+                });
+                return;
+            }
+
             // A connection the program made was refused: what it connects to was not there to answer, which no change to the code alters.
             if (kind == FindingKind.Runtime && RefusedConnection.In(error) is { } refusal)
             {
@@ -948,6 +1754,10 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         switch (outcome.Result)
         {
+            // node --test ends with code 1 when a test failed, which its tests' own findings already say.
+            case SessionResult.FailedSilently when outcome.Run is { } testRun && TestReport.ResultsIn(testRun.Lines.Select(line => line.Text)).Count > 0:
+                break;
+
             case SessionResult.FailedSilently when outcome.Run?.Outcome != RunOutcome.Crashed:
                 Add(new Finding
                 {
@@ -1049,9 +1859,13 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 return $"{reads}{warnings}; pytest stopped after {ran} of its {Count(found, "test")}{(failed > 0 ? $", {failed} of which failed" : "")}";
             }
 
-            return failed > 0 ? $"{reads}{warnings}; {failed} of {Count(ran, "test")} failed{othersNotRun}{notCleanedUp}"
+            // doctest's tests are the examples in each docstring, which are called its doctests; a program's own checks are its
+            // asserts, or - console.assert's - its checks.
+            var testNoun = framework is "doctest" or "assert" ? framework : framework == NodeTests.ConsoleAssertName ? "check" : "test";
+
+            return failed > 0 ? $"{reads}{warnings}; {failed} of {Count(ran, testNoun)} failed{othersNotRun}{notCleanedUp}"
                 : ran > 0 && notSetUp ? $"{reads}{warnings}; {(ran == 1 ? "the test that ran passes" : $"the {ran} tests that ran pass")}{othersNotRun}{notCleanedUp}"
-                : ran > 0 ? $"{reads}{warnings}, and {(ran == 1 ? "its test passes" : $"all {ran} of its tests pass")}{notCleanedUp}"
+                : ran > 0 ? $"{reads}{warnings}, and {(ran == 1 ? $"its {testNoun} passes" : $"all {ran} of its {testNoun}s pass")}{notCleanedUp}"
                 : notSetUp ? $"{reads}{warnings}, but setting up for its tests failed, so {framework} ran none of them"
                 : $"{reads}{warnings}, but {framework} ran none of its tests";
         }
@@ -1059,6 +1873,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         return outcome.Result switch
         {
             SessionResult.CouldNotRun => "It could not be started",
+            _ when outcome.Error is { } error && NotAMainPackage(error, chosen) => $"{reads}{warnings}; it is a package of functions, not a program, so there is nothing to run",
             _ when outcome.Error is { } error && NothingToRun(error, chosen) is not null => $"{reads}{warnings}; it has no main method to run",
             _ when outcome.Error is { } error && NoJavaFxToStartIt(error, chosen) is not null => $"{reads}{warnings}; Java would not start it without JavaFX",
             _ when outcome.Error is { } error && RefusedConnection.In(error) is { } refusal =>
@@ -1069,9 +1884,17 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             _ when outcome.Run?.Outcome == RunOutcome.TimedOut && RunsUntilStoppedOf(chosen) is { } runsOn =>
                 $"{reads}{warnings}, and it was still running when its time ran out, as {runsOn.Like} does",
             _ when outcome.Run?.Outcome == RunOutcome.TimedOut => $"{reads}{warnings}, but it never finished",
+            _ when DoctestExamplesFailed(outcome, chosen) is > 0 and var failedExamples =>
+                $"{reads}{warnings}, and it runs to the end, but {(failedExamples == 1 ? "an example of its doctests" : $"{failedExamples} examples of its doctests")} failed",
             _ => $"{reads}{warnings}, and it runs to the end",
         };
     }
+
+    /// <summary>How many examples of a Python program's doctests failed as it ran them itself, with doctest.testmod().</summary>
+    private static int DoctestExamplesFailed(SessionOutcome outcome, string chosen) =>
+        outcome.Run is { } run && IsPython(chosen) && PythonTests.FrameworkOf(chosen) == PythonTests.Framework.None
+            ? DoctestReport.FailuresIn(run.Lines).Count
+            : 0;
 
     private async Task<FixCandidate?> FixAsync(
         ParsedError error, IReadOnlyList<ParsedError> all, IReadOnlyList<CapturedLine> output, string? root, bool fromBuild, CancellationToken cancellationToken)
@@ -1171,6 +1994,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         using var programsJdk = UseTheProgramsJdk(launch);
         var found = launch.ChosenFile is { } chosen ? ProgramFiles.Read(chosen) : null;
         var files = found?.Files ?? [];
+        _fileMap = found is not null && launch.ChosenFile is { } mapped ? ProgramFiles.UsesSaid(ProgramFiles.Uses(found), mapped) : [];
         _launch = launch;
         _cancellation = cancellationToken;
         _codeOnly = true;
@@ -1187,8 +2011,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         }
 
         Task[] finishing;
-        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values];
+        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values, .. _explainingWhyTheLineRan, .. _following.Values];
         await Task.WhenAll(finishing);
+        LinkWhatFixesRemove();
 
         lock (_gate)
         {
@@ -1197,7 +2022,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             if (_reusedFunctions > 0)
                 logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
 
-            return new CheckReport(Sorted(_findings), [.. _notes], "Not compiled or run - read as it was saved", logicSummary, null);
+            return new CheckReport(Sorted(_findings), [.. _notes], "Not compiled or run - read as it was saved", logicSummary, null) { Recognised = _recognised, FileMap = _fileMap };
         }
     }
 
@@ -1205,10 +2030,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     private async Task<int> CodeFindingsAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
     {
         var found = 0;
+        NoteFilesTooLargeToRead(files);
         var sourcesRead = files.Select(SourceFile.Read).OfType<SourceFile>().ToList();
         var patterns = sourcesRead.SelectMany(source => LogicPatterns.Scan(source, Log).Select(finding => (Source: source, Finding: finding))).ToList();
 
         var analysed = AnalyseAsync(launch, files, cancellationToken);
+        var importsInACircle = ImportsInACircleAsync(launch, files, cancellationToken);
 
         await ForEachAsync(patterns, async item =>
         {
@@ -1217,7 +2044,94 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             Interlocked.Increment(ref found);
         }, cancellationToken);
 
-        return found + await analysed;
+        return found + await analysed + await importsInACircle;
+    }
+
+    /// <summary>
+    /// For a Python program run as a script, its imports played out from the file that is run, as Python runs them: the
+    /// import where they go round in a circle and stop the program, said with each import on the way to it.
+    /// </summary>
+    private async Task<int> ImportsInACircleAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
+    {
+        if (launch.ChosenFile is not { } runFile || NotebookScript.Of(runFile) is not null) return 0;
+
+        try
+        {
+            AnalysisFinding? inACircle = null;
+
+            // A file of tests is imported by its runner rather than run, and a notebook's cells are run as one script of FixFinder's.
+            if (runFile.EndsWith(".py", StringComparison.OrdinalIgnoreCase) && PythonTests.FrameworkOf(runFile) == PythonTests.Framework.None &&
+                PythonInterpreter(launch) is { } python)
+                inACircle = await PythonImportOrder.CheckAsync(runFile, files, python, cancellationToken);
+
+            // A CommonJS program's requires, which Node runs in the same way but never starts the file that is run again.
+            if (Path.GetExtension(runFile).ToLowerInvariant() is ".js" or ".cjs" && !NodeTests.AreItsTests(runFile))
+                inACircle = await JavaScriptRequireOrder.CheckAsync(runFile, files, cancellationToken);
+
+            if (inACircle is null) return 0;
+            Add(FindingFactory.FromAnalysis(inACircle));
+            return 1;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Playing out the program's imports stopped early: {ex.Message}");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// When the run printed Node's own warning about a name a circle of requires left out - Accessing non-existent property
+    /// 'TAX_RATE' of module exports inside circular dependency - the finding that worked out that name is confirmed by it.
+    /// </summary>
+    private void ConfirmCircularRequires(SessionOutcome? outcome)
+    {
+        if (outcome?.Run is not { } run) return;
+        var warned = run.Lines.Select(line => NodeCircularWarning().Match(line.Text)).Where(match => match.Success)
+            .Select(match => match.Groups["name"].Value).ToHashSet(StringComparer.Ordinal);
+        if (warned.Count == 0) return;
+
+        lock (_gate)
+        {
+            for (var index = 0; index < _findings.Count; index++)
+            {
+                if (_findings[index] is not { RuleId: PythonImportOrder.CheckId, Confirmation: null, Found: { } found } circle ||
+                    Path.GetExtension(circle.File).ToLowerInvariant() is not (".js" or ".cjs")) continue;
+                if (warned.FirstOrDefault(name => found.Contains($" {name} ", StringComparison.Ordinal) || found.Contains($".{name} ", StringComparison.Ordinal)) is not { } name) continue;
+
+                _findings[index] = circle with
+                {
+                    Confidence = Confidence.Certain,
+                    Confirmation = $"run as it is, Node warned: Accessing non-existent property '{name}' of module exports inside circular dependency",
+                };
+            }
+        }
+    }
+
+    [GeneratedRegex(@"Warning: Accessing non-existent property '(?<name>[^']+)' of module exports inside circular dependency")]
+    private static partial Regex NodeCircularWarning();
+
+    /// <summary>
+    /// Says which of the program's files are too large for their code to be read - generated, minified or data, as a rule -
+    /// so that a report with no logic mistake in them is not taken to mean they were looked through.
+    /// </summary>
+    private void NoteFilesTooLargeToRead(IReadOnlyList<string> files)
+    {
+        foreach (var file in files)
+        {
+            long size;
+            try
+            {
+                size = new FileInfo(file).Length;
+            }
+            catch (Exception reading) when (reading is IOException or UnauthorizedAccessException)
+            {
+                continue;
+            }
+
+            if (size <= SourceFile.LargestRead) continue;
+            Note($"{Path.GetFileName(file)} is {size / 1048576.0:0.0} MB, more than the {SourceFile.LargestRead / 1048576} MB of code FixFinder reads in one " +
+                 "file, so the logic checks did not read it and no fix can be worked out in it.");
+        }
     }
 
     /// <summary>Follows every value through the program - abstract interpretation - for the languages it can read so far.</summary>
@@ -1251,6 +2165,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             }
 
             var findings = AbstractChecks.Run(program, new SourceText(), Cache);
+
+            // Functions written twice - the same lines but for their own names - with one in the file that was chosen.
+            findings = [.. findings, .. DuplicateFunctions.Find(program, launch.ChosenFile)];
+
+            // What the code looks like it is meant to do, read from the same code: a binary search, a bubble sort.
+            _recognised = Analysis.Recognition.AlgorithmRecognition.Of(program);
             if (Cache is { LastRun: { Reused: > 0 } run })
             {
                 Log?.Invoke($"{Count(run.Reused, "function")} had not changed since the last check, so what was found in them then was used again; " +
@@ -1261,9 +2181,11 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
             // One input for each way through the program that what is typed decides, run to show what each way does - for a
             // program run on its own, not one with a window or a server, which a run that waits for nobody would not show.
-            if (!_codeOnly && program.Language == SourceLanguage.Python && launch.ChosenFile is { } chosen && launch.Spec is { } spec &&
+            // A Java or C# program is tried once it has built - the syntax lane builds it while this one reads it.
+            if (!_codeOnly && program.Language is SourceLanguage.Python or SourceLanguage.Java or SourceLanguage.CSharp && launch.ChosenFile is { } chosen && launch.Spec is { } spec &&
                 NotebookScript.Of(chosen) is null && RunsUntilStoppedOf(chosen) is null &&
-                Analysis.Dynamic.InputsToTry.AnswersFor(program, chosen) is { Count: > 0 } answerSets)
+                Analysis.Dynamic.InputsToTry.AnswersFor(program, chosen) is { Count: > 0 } answerSets &&
+                (program.Language == SourceLanguage.Python || await _built))
             {
                 Progress?.Invoke(CheckLane.Logic, "Trying an input for each way through the program...");
                 _tried = await Analysis.Dynamic.InputsToTry.TryAsync(spec, answerSets, cancellationToken);
@@ -1274,6 +2196,48 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             {
                 Progress?.Invoke(CheckLane.Logic, "Running the code with the inputs that should break it...");
                 findings = await Confirmation.ConfirmAsync(findings, python, cancellationToken);
+            }
+
+            // A Java method is called the same way, from a small class compiled beside a copy of its file.
+            if (!_codeOnly && program.Language == SourceLanguage.Java && findings.Any(f => f.WitnessValues is { Count: > 0 }) &&
+                Analysis.Frontends.JavaFrontend.FindTools(launch.ChosenFile) is { } javaTools)
+            {
+                Progress?.Invoke(CheckLane.Logic, "Running the code with the inputs that should break it...");
+                findings = await Analysis.Dynamic.JavaConfirmation.ConfirmAsync(findings, program, javaTools.Javac, javaTools.Java, cancellationToken);
+            }
+
+            // A Go function is called from a small file built beside a copy of its own, its panic recovered.
+            if (!_codeOnly && program.Language == SourceLanguage.Go && findings.Any(f => f.WitnessValues is { Count: > 0 }) &&
+                launch.ChosenFile is { } goFile && Analysis.Frontends.GoFrontend.FindGo(goFile) is { } go)
+            {
+                Progress?.Invoke(CheckLane.Logic, "Running the code with the inputs that should break it...");
+                findings = await Analysis.Dynamic.GoConfirmation.ConfirmAsync(findings, program, go, cancellationToken);
+            }
+
+            // A JavaScript function is called from the end of a copy of its file that keeps only the file's definitions.
+            if (!_codeOnly && program.Language == SourceLanguage.JavaScript && findings.Any(f => f.WitnessValues is { Count: > 0 }) && NodeOf(launch) is { } node)
+            {
+                Progress?.Invoke(CheckLane.Logic, "Running the code with the inputs that should break it...");
+                findings = await Analysis.Dynamic.JavaScriptConfirmation.ConfirmAsync(findings, program, node, cancellationToken);
+            }
+
+            // A sort or a search recognised in a Python, JavaScript or Java program is called on lists of FixFinder's own, to see it do what it should.
+            var triedWrong = 0;
+            var trialJdk = program.Language == SourceLanguage.Java ? Analysis.Frontends.JavaFrontend.FindTools(launch.ChosenFile) : null;
+            var trialRuntime = program.Language switch
+            {
+                SourceLanguage.Python => PythonInterpreter(launch),
+                SourceLanguage.JavaScript => NodeOf(launch),
+                SourceLanguage.Java => trialJdk?.Javac,
+                _ => null,
+            };
+            if (!_codeOnly && _recognised.Count > 0 && trialRuntime is { } runtime)
+            {
+                Progress?.Invoke(CheckLane.Logic, "Calling the sorts and searches it recognised...");
+                var tried = await Analysis.Recognition.AlgorithmTrial.TryAsync(_recognised, program, runtime, cancellationToken, trialJdk?.Java);
+                _recognised = tried.Seen;
+                foreach (var wrong in tried.Findings) Add(wrong);
+                triedWrong = tried.Findings.Count;
             }
 
             foreach (var finding in findings)
@@ -1290,7 +2254,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 }
             }
 
-            return findings.Count;
+            return findings.Count + triedWrong;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -1298,6 +2262,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             return 0;
         }
     }
+
+    /// <summary>The Node the program runs with, or the one on the PATH.</summary>
+    private static string? NodeOf(LaunchPlan launch) =>
+        launch.Spec is { } spec && Path.GetFileNameWithoutExtension(spec.ExecutablePath).Equals("node", StringComparison.OrdinalIgnoreCase)
+            ? spec.ExecutablePath
+            : TargetFactory.FindOnPath("node");
 
     /// <summary>The Python the program runs with, or any Python on this computer.</summary>
     private static string? PythonInterpreter(LaunchPlan launch) =>
@@ -1413,6 +2383,10 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             finding = finding with { InNotebook = place };
         }
 
+        // How the run got to the line it stopped on, from its own trace - said of a script's lines, so not of a notebook's cells.
+        if (finding is { Kind: FindingKind.Runtime, Error: { } stoppedWith, InNotebook: null, CallPath.Count: 0 })
+            finding = finding with { CallPath = CallPath.From(stoppedWith, OwnFiles(finding.File)) };
+
         IReadOnlyList<Finding> snapshot;
 
         lock (_gate)
@@ -1443,6 +2417,90 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         FindingsChanged?.Invoke(snapshot);
         CompareFix(finding);
         VerifyFix(finding);
+        FollowFix(finding);
+    }
+
+    /// <summary>
+    /// Starts reading the fix's file again with the fix made, beside the file as it is, to find which of the other mistakes
+    /// in it the fix removes as well - for the first few fixes, since each reading runs the language's parser again.
+    /// </summary>
+    private void FollowFix(Finding finding)
+    {
+        if (finding.Fix is not { } fix || _launch is not { } launch || NotebookScript.Of(fix.File) is not null) return;
+        if (SourceFile.Read(fix.File) is not { } source || fix.ApplyTo(source) is not { } withTheFix) return;
+
+        var key = FixKey(fix);
+        Task<IrProgram>? ReadWithItsParser(IReadOnlyList<string> files) => ReadProgramAsync(launch, files, _cancellation);
+
+        lock (_gate)
+        {
+            if (_following.ContainsKey(key) || _following.Count >= MostFixesFollowed) return;
+
+            if (!_readAsItIs.TryGetValue(source.Path, out var asItIs))
+            {
+                asItIs = Task.Run(() => FixEffects.ReadAsync(source, source.Lines, ReadWithItsParser, _cancellation), CancellationToken.None);
+                _readAsItIs[source.Path] = asItIs;
+            }
+
+            _following[key] = Task.Run(() => FollowFixAsync(fix, source, withTheFix, asItIs, ReadWithItsParser, key), CancellationToken.None);
+        }
+    }
+
+    private async Task FollowFixAsync(
+        LocalFix fix, SourceFile source, IReadOnlyList<string> withTheFix, Task<CodeReading?> asItIs, Func<IReadOnlyList<string>, Task<IrProgram>?> readWithItsParser, string key)
+    {
+        try
+        {
+            // Nothing found in the file as it is leaves nothing for the fix to remove, and no reason to read it again.
+            if (await asItIs is not { Found.Count: > 0 } before) return;
+            if (await FixEffects.ReadAsync(source, withTheFix, readWithItsParser, _cancellation) is not { } after) return;
+
+            var removed = FixEffects.RemovedBy(fix, source, before, after);
+            lock (_gate) _removedByFix[key] = removed;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Reading the code again with a fix made stopped early: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Each finding a fix was found to remove - no longer found when its file was read again with the fix made - is said to
+    /// follow from the finding whose fix it is. Only a finding that follows from nothing yet, and that nothing yet follows
+    /// from, so every link is one step from a root; another finding with the same fix is the same mistake, not one it removes.
+    /// A fix that a copy showed does not work - it did not build, or the copy still failed - is not a fix to follow. A link
+    /// RootCauses makes of its own - one name missing in several places, a value a run showed was made on another finding's
+    /// line - says more than this one, so a finding it links, either way, is left for it.
+    /// </summary>
+    private void LinkWhatFixesRemove()
+    {
+        lock (_gate)
+        {
+            var linkedByRootCauses = RootCauses.Link([.. _findings]).Where(finding => finding.CausedBy is not null).ToList();
+            var placedByRootCauses = linkedByRootCauses.Select(finding => finding.Id)
+                .Concat(linkedByRootCauses.Select(finding => finding.CausedBy!.RootId)).ToHashSet(StringComparer.Ordinal);
+
+            foreach (var (key, removed) in _removedByFix)
+            {
+                if (removed.Count == 0) continue;
+
+                var rootIndex = _findings.FindIndex(finding => finding.Fix is { } fix && FixKey(fix) == key && finding.CausedBy is null);
+                if (rootIndex < 0 || _findings[rootIndex].Verified.SomethingFailed || placedByRootCauses.Contains(_findings[rootIndex].Id)) continue;
+                var root = _findings[rootIndex];
+
+                for (var index = 0; index < _findings.Count; index++)
+                {
+                    var other = _findings[index];
+                    if (index == rootIndex || other.CausedBy is not null || other.Line is not { } line) continue;
+                    if (!string.Equals(Path.GetFullPath(other.File), Path.GetFullPath(root.Fix!.File), StringComparison.OrdinalIgnoreCase)) continue;
+                    if (other.Fix is { } ownFix && FixKey(ownFix) == key) continue;
+                    if (!removed.Contains(new CodeFindingPlace(other.RuleId, line))) continue;
+                    if (_findings.Any(finding => finding.CausedBy?.RootId == other.Id) || placedByRootCauses.Contains(other.Id)) continue;
+
+                    _findings[index] = other with { CausedBy = new Relation(root.Id, RelationKind.RemovedByItsFix, Confidence.Certain) };
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -1609,15 +2667,37 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         Slice = better.Slice ?? other.Slice,
         Confirmation = better.Confirmation ?? other.Confirmation,
         State = better.State ?? other.State,
+        RootCause = better.RootCause ?? other.RootCause,
+        Timeline = better.Timeline.Count > 0 ? better.Timeline : other.Timeline,
+        CallPath = better.CallPath.Count > 0 ? better.CallPath : other.CallPath,
+        Branches = better.Branches.Count > 0 ? better.Branches : other.Branches,
     };
+
+    /// <summary>
+    /// What following a missing value back found: where it came from, the file it is in, the change that skips it on the line it
+    /// stopped on, what each variable held - and, where the run recorded them, the decisions around that line.
+    /// </summary>
+    private sealed record Followed(RootCause? Cause, SourceFile Source, LocalFix? Guard, IReadOnlyList<VariableHistory> Timeline)
+    {
+        public IReadOnlyList<BranchTaken> Branches { get; init; } = [];
+    }
+
+    /// <summary>The program's own files, or - for a check that read none, as a single file passed straight to a run - the file the finding is in.</summary>
+    private IReadOnlyList<string> OwnFiles(string findingFile) =>
+        _programFiles.Count > 0 ? _programFiles : [Path.GetFullPath(findingFile)];
 
     /// <summary>
     /// Whether a finding is the better of two of one mistake: ranked higher - or, ranked the same, made by a logic check when
     /// the other is not, as a warning Perl printed and the check on length(@marks) both offer scalar(@marks). A run's warning
     /// and a logic check's answer can arrive in either order, so without this the one kept would depend on which came first.
+    /// Alike in both, the one on the earlier line is kept: javac's two errors for one int total; - used at line 5 and line 7
+    /// before it has a value - are fixed side by side, and the same int total = 0; for both was said at line 5 or at line 7
+    /// by which fix finished first.
     /// </summary>
     private static bool Outranks(Finding finding, Finding twin) =>
-        Rank(finding) != Rank(twin) ? Rank(finding) > Rank(twin) : finding.Kind == FindingKind.Logic && twin.Kind != FindingKind.Logic;
+        Rank(finding) != Rank(twin) ? Rank(finding) > Rank(twin)
+        : (finding.Kind == FindingKind.Logic) != (twin.Kind == FindingKind.Logic) ? finding.Kind == FindingKind.Logic
+        : (finding.Line ?? int.MaxValue) < (twin.Line ?? int.MaxValue);
 
     /// <summary>
     /// Says how many of a program's files its code was not read from for logic mistakes, when it has more than are read - so

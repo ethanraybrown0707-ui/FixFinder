@@ -34,6 +34,7 @@ public class StackTraceParserTests
     [InlineData("gcc/asan.txt", "gcc")]
     [InlineData("gcc/compile-error.txt", "gcc")]
     [InlineData("gcc/segfault.txt", "gcc")]
+    [InlineData("gcc/missing-library.txt", "gcc")]
     [InlineData("msvc/cs0103.txt", "msvc")]
     [InlineData("ruby/zerodivision.txt", "ruby")]
     [InlineData("ruby/ruby34-quotes.txt", "ruby")]
@@ -304,6 +305,19 @@ public class StackTraceParserTests
         Assert.Equal("compile error", error.ExceptionType);
         Assert.Contains("row_count", error.Message);
         Assert.Equal(88, error.Frames[0].Line);
+    }
+
+    /// <summary>
+    /// GNU ld's own words when a library linked by name is not there - captured from MinGW gcc 13.2 building one of
+    /// TheAlgorithms' C searches, which was said not to build with nothing to say why.
+    /// </summary>
+    [Fact]
+    public void Gcc_ReadsALibraryTheLinkerCannotFind()
+    {
+        var error = Parse("gcc/missing-library.txt");
+
+        Assert.Equal("link error", error.ExceptionType);
+        Assert.Equal("cannot find the library 'function_timer' (-lfunction_timer)", error.Message);
     }
 
     [Fact]

@@ -60,6 +60,12 @@ public sealed class Evaluator(SourceLanguage language)
     public IReadOnlySet<string> OwnTypes { get; init; } = new HashSet<string>();
 
     /// <summary>
+    /// The C++ references the function declares and takes: what is written to a name is written to every other name of
+    /// its variable, and a name that may be another code's variable is forgotten whenever other code runs.
+    /// </summary>
+    public References References { get; init; } = References.None;
+
+    /// <summary>
     /// In Java and C# a field can be written this.count or just count; both mean the same field unless a local variable
     /// of that name hides it, so both are followed under the one name.
     /// </summary>
@@ -74,22 +80,37 @@ public sealed class Evaluator(SourceLanguage language)
     /// </summary>
     public AbstractState Store(AbstractState state, string name, AbstractValue value)
     {
-        var sharing = state.AliasesOf(name).ToList();
+        var sharing = state.AliasesOf(name).Concat(References.Same(name)).Distinct(StringComparer.Ordinal).Where(other => other != name).ToList();
 
         state = StoreOne(state, name, value);
         foreach (var alias in sharing) state = StoreOne(state, alias, value);
-        return state;
+        return ForgetOne(state, References.Maybe(name));
     }
 
-    /// <summary>A name given a new value: whatever object it shared before, it shares no longer.</summary>
-    public AbstractState Rebind(AbstractState state, string name, AbstractValue value) => StoreOne(state.Unaliased(name), name, value);
+    /// <summary>
+    /// A name given a new value: whatever object it shared before, it shares no longer - and a key written with it, or a map
+    /// reached through it, is no longer known to be anything, nor is how it stands to a bound. So it is for every other
+    /// name a C++ reference gives the variable, and one that may be another name for it is no longer known at all.
+    /// </summary>
+    public AbstractState Rebind(AbstractState state, string name, AbstractValue value) =>
+        ForgetOne(References.Same(name).Aggregate(RebindOne(state, name, value), (writing, same) => RebindOne(writing, same, value)), References.Maybe(name));
+
+    private AbstractState RebindOne(AbstractState state, string name, AbstractValue value) =>
+        StoreOne(state.Unaliased(name).WithoutKeysNaming(name).WithoutPastNaming(name), name, value);
 
     private AbstractState StoreOne(AbstractState state, string name, AbstractValue value)
     {
-        if (Volatile.Contains(name)) return state.Without(name);
+        if (IsVolatile(name)) return state.Without(name);
         if (Escaping.Contains(name) && value.MayBe(Shared)) value = value with { Length = value.Length.Join(Interval.NonNegative) };
         return state.With(name, value);
     }
+
+    /// <summary>Whether other code can change a variable at any call: one a function written inside this one uses, by any of its names.</summary>
+    private bool IsVolatile(string name) => Volatile.Contains(name) || Volatile.Count > 0 && References.Sharing(name).Any(Volatile.Contains);
+
+    /// <summary>What was known of these names is lost - only of these, which <see cref="Forget"/> leaves to its caller.</summary>
+    private static AbstractState ForgetOne(AbstractState state, IEnumerable<string> names) =>
+        names.Aggregate(state, (forgetting, name) => forgetting.Without(name));
 
     /// <summary>The kinds of collection whose length other code can change once it has been handed one.</summary>
     private ValueKind Shared => Failures.ListsKeepTheirLength(language)
@@ -330,8 +351,11 @@ public sealed class Evaluator(SourceLanguage language)
                 if (method is "indexOf" or "IndexOf") return AbstractValue.Integer(new Interval(-1, double.PositiveInfinity));
             }
 
+            // A key put in the map, or tested for, finds something: dp.get(i - 1) inside if (dp.containsKey(i - 1)).
             if (receiver.IsOnly(ValueKind.Dictionary) && method == "get")
-                return call.Arguments.Count >= 2 ? AbstractValue.Unknown.Join(Evaluate(call.Arguments[1].Value, state)) : AbstractValue.Unknown.Join(AbstractValue.Null);
+                return call.Arguments.Count >= 2 ? AbstractValue.Unknown.Join(Evaluate(call.Arguments[1].Value, state))
+                    : call.Arguments is [{ Value: var key }] && state.HasKey(IrText.Of(receiverExpression), IrText.Of(key)) ? AbstractValue.Unknown
+                    : AbstractValue.Unknown.Join(AbstractValue.Null);
 
             if (receiver.IsOnly(ValueKind.List | ValueKind.Set | ValueKind.Dictionary))
             {
@@ -531,11 +555,12 @@ public sealed class Evaluator(SourceLanguage language)
             case ReleaseInstruction:
                 return ForgetOthers(state);
 
+            // A variable made anew is not one a reference was bound to before; a reference is bound by its first value.
             case DeclareInstruction declare:
-                return Rebind(state, declare.Variable, FromType(declare.Type));
+                return RebindOne(state, declare.Variable, FromType(declare.Type));
 
             case ForgetInstruction forget:
-                return forget.Names.Aggregate(state, (s, name) => s.Without(name));
+                return Forget(state, forget.Names);
 
             default:
                 return state;
@@ -549,6 +574,10 @@ public sealed class Evaluator(SourceLanguage language)
             case Name name:
                 if (!IsPython && DeclaredTypes.TryGetValue(name.Identifier, out var declared))
                     value = value.IsUnknown ? FromType(declared) : AsDeclared(value, declared);
+
+                // int& alias = rows binds alias to rows, whose value it now has; and alias = rows after it changes nothing.
+                if (valueExpression is Name { Identifier: var itself } && References.Same(name.Identifier).Contains(itself))
+                    return StoreOne(state, name.Identifier, value);
 
                 // b = a: both names now hold the one object, so a change made through either is a change to both.
                 if (valueExpression is Name { Identifier: var source } && source != name.Identifier && Tracked(source) && Tracked(name.Identifier))
@@ -576,9 +605,10 @@ public sealed class Evaluator(SourceLanguage language)
             case Member field when FieldName(field) is { } named:
                 return Rebind(state, named, value);
 
-            case ElementAccess { Target: Name owner } when state[owner.Identifier].IsOnly(ValueKind.Dictionary):
+            case ElementAccess { Target: Name owner, Key: var key } when state[owner.Identifier].IsOnly(ValueKind.Dictionary):
                 var dictionary = state[owner.Identifier];
-                return Store(state, owner.Identifier, dictionary with { Length = new Interval(dictionary.Length.Low, dictionary.Length.High + 1) });
+                return Store(state, owner.Identifier, dictionary with { Length = new Interval(dictionary.Length.Low, dictionary.Length.High + 1) })
+                    .WithKey(IrText.Of(owner), IrText.Of(key));
 
             default:
                 return state;
@@ -598,17 +628,18 @@ public sealed class Evaluator(SourceLanguage language)
     /// <summary>
     /// Entering or leaving a with block runs the resource's own code too - and a lock is where other threads come in. The
     /// hidden copies the code itself makes - the collection a loop walks - are the function's own and no other code can
-    /// change them, unless they share their object with something that is forgotten.
+    /// change them, unless they share their object with something that is forgotten. A C++ reference that may stand for
+    /// a variable other code reaches - an int&amp; parameter is the caller's - is not the function's own either.
     /// </summary>
     private AbstractState ForgetOthers(AbstractState state)
     {
-        state = Forget(state, Addresses.Kept);
+        state = Forget(Forget(state, Addresses.Kept), References.Outside);
         if (Locals is null) return state;
 
         foreach (var name in state.Names.Where(name => !Locals.Contains(name) && !IsHidden(name)).ToList())
         {
             var hiddenCopies = state.AliasesOf(name).Where(IsHidden).ToList();
-            state = hiddenCopies.Aggregate(state.Without(name), (s, copy) => s.Without(copy));
+            state = Forget(hiddenCopies.Aggregate(state.Without(name), (s, copy) => s.Without(copy)), References.Sharing(name));
         }
 
         return state;
@@ -617,9 +648,12 @@ public sealed class Evaluator(SourceLanguage language)
     /// <summary>The control-flow graph's own temporaries - $items0, $result2 - which the program never names.</summary>
     private static bool IsHidden(string name) => name.StartsWith('$');
 
-    /// <summary>What is known of these variables is lost: code that holds their address may have changed them.</summary>
-    private static AbstractState Forget(AbstractState state, IEnumerable<string> changed) =>
-        changed.Aggregate(state, (forgetting, name) => forgetting.Without(name));
+    /// <summary>
+    /// What is known of these variables is lost: code that holds their address may have changed them - and so it is by
+    /// every other name a C++ reference gives them.
+    /// </summary>
+    private AbstractState Forget(AbstractState state, IEnumerable<string> changed) =>
+        changed.Aggregate(state, (forgetting, name) => ForgetOne(forgetting.Without(name), References.Sharing(name)));
 
     /// <summary>
     /// A write that goes through a pointer or into something a name holds - *p = 5, p->next = q, values[i] = v - which
@@ -636,6 +670,20 @@ public sealed class Evaluator(SourceLanguage language)
     private AbstractState AfterCall(AbstractState state, Expr expression)
     {
         if (expression is not Call call) return state;
+
+        // map.put(key, value) leaves the key in the map, unless what was put is null; taking anything out leaves no key known.
+        if (call.Callee is Member { Target: var map, MemberName: var change })
+        {
+            if (change is "put" or "putIfAbsent" or "computeIfAbsent" or "Add" or "TryAdd" &&
+                call.Arguments is [{ Value: var key }, { Value: var value }] && value is not Literal { Kind: LiteralKind.Null })
+                state = state.WithKey(IrText.Of(map), IrText.Of(key));
+            else if (change is "remove" or "Remove" or "clear" or "Clear" or "removeIf" or "removeAll" or "retainAll" or "delete" or "pop" or "popitem")
+                state = state.WithoutKeysOf(IrText.Of(map));
+        }
+
+        // A map handed to other code can have anything taken out of it there.
+        foreach (var argument in call.Arguments)
+            if (argument.Value is Name handed) state = state.WithoutKeysOf(IrText.Of(handed));
 
         if (call.Callee is Member { Target: Name owner, MemberName: var method } && state[owner.Identifier] is var collection &&
             collection.IsOnly(ValueKind.List | ValueKind.Set | ValueKind.Dictionary))
@@ -667,12 +715,23 @@ public sealed class Evaluator(SourceLanguage language)
         return state;
     }
 
-    /// <summary>Assignments made inside an expression - Python's := - happen before the rest of it is used.</summary>
+    /// <summary>
+    /// Assignments made inside an expression - Python's :=, C's count++ - happen before the rest of it is used: those in the
+    /// value given, and those in the place it is written to, as in lower[lowerCount++] = item, which counts as well as stores.
+    /// </summary>
+    /// <remarks>
+    /// Only a place written through - the array and index of an element, the object or pointer of a member, the call that
+    /// gives C++ references to write to, as std::tie(low, high) = range does - is looked into, not a pattern taken apart:
+    /// the default in [first = 0] = values is given only when values has no first item.
+    /// </remarks>
     private AbstractState Embedded(AbstractState state, Expr expression)
     {
         foreach (var assigned in Assignments(expression))
         {
-            state = AssignTo(Embedded(state, assigned.Value), assigned.Target, Evaluate(assigned.Value, state), assigned.Value);
+            var after = Embedded(state, assigned.Value);
+            if (assigned.Target is ElementAccess or Member or Call) after = Embedded(after, assigned.Target);
+
+            state = AssignTo(after, assigned.Target, Evaluate(assigned.Value, state), assigned.Value);
             if (WritesThroughPointer(assigned.Target)) state = Forget(state, Addresses.ChangedByWriteTo(assigned.Target));
         }
 
@@ -758,6 +817,13 @@ public sealed class Evaluator(SourceLanguage language)
             // typeof x === 'number' says what x is, and that it is something: in JavaScript only null and undefined are neither.
             case Binary { Operator: BinaryOperator.Equal } typed when holds && TypeOfTest(typed) is { } named:
                 return AssumeSomething(state, named);
+
+            // A key tested for is in the map, so looking it up finds something: map.containsKey(key), map.has(key), key in map.
+            case Call { Callee: Member { Target: var map, MemberName: "containsKey" or "ContainsKey" or "has" }, Arguments: [{ Value: var key }] } when holds:
+                return state.WithKey(IrText.Of(map), IrText.Of(key));
+
+            case Binary { Operator: BinaryOperator.In, Left: var key, Right: var map } when holds && IsPython:
+                return state.WithKey(IrText.Of(map), IrText.Of(key));
 
             case Call { Callee: Name { Identifier: "len" }, Arguments: [{ Value: Name sized }] }:
                 var measured = state[sized.Identifier];
@@ -928,6 +994,7 @@ public sealed class Evaluator(SourceLanguage language)
             right = AsNumberWhenComparedWithOne(right, left);
         }
         if (!left.IsNumber || !right.IsNumber) return state;
+        if (state.KnowsPast && Contradicts(state, comparison.Left, op, comparison.Right)) return AbstractState.Unreachable;
 
         state = Known(state, comparison.Left, left);
         state = Known(state, comparison.Right, right);
@@ -940,8 +1007,66 @@ public sealed class Evaluator(SourceLanguage language)
 
         state = Refine(state, comparison.Left, leftAllowed, op == BinaryOperator.NotEqual ? right.Number : null, integers);
         state = Refine(state, comparison.Right, rightAllowed, op == BinaryOperator.NotEqual ? left.Number : null, integers);
-        return state;
+        return ordering && integers ? Remember(state, comparison.Left, op, comparison.Right) : state;
     }
+
+    /// <summary>
+    /// Whether what is known of a variable past a bound rules out <paramref name="left"/> <paramref name="op"/>
+    /// <paramref name="right"/>, read with either side as the variable: past it, it is neither below nor at it.
+    /// </summary>
+    private static bool Contradicts(AbstractState state, Expr left, BinaryOperator op, Expr right) =>
+        Against(state, left, op, right) || Against(state, right, Mirror(op), left);
+
+    private static bool Against(AbstractState state, Expr side, BinaryOperator op, Expr other) =>
+        side is Name { Identifier: var name } && op switch
+        {
+            BinaryOperator.Less => state.IsPast(name, IrText.Of(other), strictly: false),
+            BinaryOperator.LessOrEqual or BinaryOperator.Equal => state.IsPast(name, IrText.Of(other), strictly: true),
+            _ => false,
+        };
+
+    /// <summary>
+    /// A comparison of whole numbers that holds, kept as a variable past a bound, which ranges cannot say when neither is
+    /// known: i &lt;= first.length() came out false, so i &gt; first.length() - until either is given another value. When the
+    /// loop it ends is followed by another testing the same, with i never set back, that loop cannot start.
+    /// </summary>
+    private AbstractState Remember(AbstractState state, Expr left, BinaryOperator op, Expr right)
+    {
+        var (past, bound) = op switch
+        {
+            BinaryOperator.Greater or BinaryOperator.GreaterOrEqual => (left, right),
+            BinaryOperator.Less or BinaryOperator.LessOrEqual => (right, left),
+            _ => (null, null),
+        };
+
+        if (past is not Name { Identifier: var name } || bound is null || !Followable(name) || !state[name].IsOnly(ValueKind.Integer | ValueKind.Boolean) ||
+            BoundRead(bound, state) is not { } boundName || boundName == name)
+            return state;
+
+        return state.Passed(name, IrText.Of(bound), boundName, strictly: op is BinaryOperator.Greater or BinaryOperator.Less);
+    }
+
+    /// <summary>
+    /// The variable a bound is read from, when it can only change by being given another value: one of the function's own
+    /// variables holding a whole number, or the length of one holding a text, where texts never change - len(s),
+    /// s.length(), s.Length. A list grows when something is added to it, and a C++ string when it is appended to, though
+    /// neither is given another value; so does a C string written through.
+    /// </summary>
+    private string? BoundRead(Expr bound, AbstractState state) => bound switch
+    {
+        Name { Identifier: var name } when Followable(name) && state[name].IsOnly(ValueKind.Integer | ValueKind.Boolean) => name,
+        _ when language is not (SourceLanguage.C or SourceLanguage.Cpp) && LengthOf(bound) is { Identifier: var text } && Followable(text) &&
+               state[text].MayBe(ValueKind.Text) && state[text].IsOnly(ValueKind.Text | ValueKind.Null) => text,
+        _ => null,
+    };
+
+    /// <summary>
+    /// A variable changed only where the function gives it a value: its own, not one a function written inside it uses, and
+    /// not one whose address it hands out - under any name a C++ reference gives it, through which it is written as well.
+    /// </summary>
+    private bool Followable(string name) =>
+        Locals is not null && Locals.Contains(name) && !IsVolatile(name) && !Addresses.Variables.Contains(name) &&
+        !References.Sharing(name).Any(Addresses.Variables.Contains);
 
     private static bool IsNullLiteral(Expr expression) => expression is Literal { Kind: LiteralKind.Null };
 

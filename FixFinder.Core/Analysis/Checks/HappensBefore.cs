@@ -286,6 +286,14 @@ internal sealed class HappensBefore
                 case Call { Callee: Name { Identifier: var name } } when Language == SourceLanguage.Python && ThreadClass(name) is { } type && names.RunOf(type.Name) is { } run:
                     return new Made(made, run, null, [], Bound: true, starting, several, position, at, loops) { RunsOnItself = true };
 
+                // One with no run() of its own - a class that only names itself, or sets itself up - runs the run() it inherits,
+                // whose code is not the program's to follow; and it may be made with nothing passed to it at all.
+                case NewObject created when ThreadClass(created.Type.Name) is not null:
+                    return null;
+
+                case Call { Callee: Name { Identifier: var name } } when Language == SourceLanguage.Python && ThreadClass(name) is not null:
+                    return null;
+
                 case Call { CalleeName: "Thread" } python when Language == SourceLanguage.Python:
                     var target = python.Arguments.First(a => a.Name == "target").Value;
                     IReadOnlyList<Argument> passed = python.Arguments.FirstOrDefault(a => a.Name == "args") is { Value: CollectionLiteral given }

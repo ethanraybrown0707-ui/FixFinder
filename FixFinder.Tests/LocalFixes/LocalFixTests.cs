@@ -508,6 +508,20 @@ public class LocalFixTests : IDisposable
     }
 
     [Theory]
+    [InlineData("warning")]
+    [InlineData("error")]
+    public void NuGetsOwnWarningsAreNotMistakesInTheProgram(string severity)
+    {
+        var output = Lines(
+            $@"C:\src\Program.cs.csproj : {severity} NU1903: Package 'Microsoft.DotNet.ILCompiler' 10.0.11 has a known high severity vulnerability, " +
+            "https://github.com/advisories/GHSA-p3jp-9v83-76w9");
+
+        Assert.Empty(new MsvcParser().ParseAll(output));
+        Assert.Empty(MsvcParser.ParseWarnings(output));
+        Assert.Empty(CompileCheck.ErrorsIn(new ParserRegistry(), output));
+    }
+
+    [Theory]
     [InlineData(unchecked((int)0xC0000094))]
     [InlineData(unchecked((int)0xC0000374))]
     public void AnIntegerDivideByZeroIsACrash(int exitCode) =>

@@ -84,6 +84,11 @@ internal sealed class GoAstReader(string file, GoTypes types)
         var outerBreaks = _breaks.ToList();
         _breaks.Clear();
 
+        // Each function's variables are its own, so only a name declared again within it - or in a function literal inside
+        // it - needs a name of its own. Kept from one function to the next, the 1,000th function's value was named value
+        // and 999 primes, and a file of 50,000 lines took minutes to read.
+        if (!nested) _taken.Clear();
+
         var results = Json.List(Json.Prop(signature, "Results"), "List").ToList();
         var resultKinds = results.SelectMany(r => Enumerable.Repeat(types.KindOf(Json.Prop(r, "Type")), Math.Max(1, Json.List(r, "Names").Count()))).ToList();
 

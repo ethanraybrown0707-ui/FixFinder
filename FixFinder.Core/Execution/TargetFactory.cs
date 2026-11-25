@@ -259,10 +259,38 @@ public static class TargetFactory
 
             case ".py" when PythonTests.FrameworkOf(full) == PythonTests.Framework.Pytest:
                 // Its tests are run with pytest itself, one by one, from where running the file - or its package - would start;
-                // pytest finds the project's own settings and conftest.py from the file, as it does when it is run there.
+                // pytest finds the project's own settings and conftest.py from the file, as it does when it is run there - and
+                // below a conftest.py, with no settings file to say where the project is, it is told that folder is the project's.
                 workingDirectory = ProgramLayout.PythonModule(full)?.Folder ?? workingDirectory;
-                arguments = $"-X utf8 \"{PythonTests.WritePytestLauncher()}\" \"{full}\"";
+                arguments = $"-X utf8 \"{PythonTests.WritePytestLauncher()}\" \"{full}\"" +
+                            (ProgramLayout.PytestRootFolder(full) is { } projectFolder ? $" \"{projectFolder}\"" : "");
                 testsRunBy = "pytest";
+                break;
+
+            case ".py" when PythonTests.FrameworkOf(full) == PythonTests.Framework.Doctest:
+                // The examples in its docstrings are run with doctest, docstring by docstring, as python -m doctest runs them:
+                // the file imported by its own name from its own folder, so its __main__ block does not run.
+                arguments = $"-X utf8 \"{PythonTests.WriteDoctestLauncher()}\" \"{full}\"";
+                testsRunBy = "doctest";
+                break;
+
+            case ".py" when PythonTests.FrameworkOf(full) == PythonTests.Framework.Asserts:
+                // A program that checks itself with assert runs as running it would, with each assert at its top a check of its own.
+                arguments = $"-X utf8 \"{PythonTests.WriteAssertLauncher()}\" \"{full}\"";
+                testsRunBy = "assert";
+                break;
+
+            case ".js" or ".mjs" or ".cjs" or ".ts" or ".mts" or ".cts" when NodeTests.AreItsTests(full):
+                // Its tests are run with Node.js's own test runner, node --test, test by test, through a reporter of FixFinder's.
+                arguments = $"--test --test-reporter={NodeTests.ReporterUrl()} \"{full}\"";
+                testsRunBy = NodeTests.RunnerName;
+                break;
+
+            case ".js" or ".mjs" or ".cjs" or ".ts" or ".mts" or ".cts" when NodeTests.ChecksWithConsoleAssert(full):
+                // It runs as it is, with each console.assert it reaches said as a check of its own - console.assert only prints.
+                arguments = $"--require \"{NodeTests.WriteConsoleAssertWatcher()}\" \"{full}\"";
+                together = " - each console.assert it reaches said as a check of its own, as console.assert itself only prints " +
+                           "\"Assertion failed\" and carries on -";
                 break;
 
             case ".go" when ProgramLayout.GoPackageOf(full) is { IsSingleFile: false } program:
@@ -304,6 +332,12 @@ public static class TargetFactory
         }
 
         var environmentGiven = go is null ? new Dictionary<string, string>() : GoSetup.Environment;
+
+        // Tests in a folder of their own import the program's modules from the project's folder, which Python looks in
+        // when the tests are run from there, as python -m pytest and an IDE run them - so it is told to look there too.
+        var importFolders = isPython ? ProgramLayout.PythonImportFolders(full, found) : [];
+        if (importFolders.Count > 0) environmentGiven = new Dictionary<string, string> { ["PYTHONPATH"] = ProgramLayout.PythonPathWith(importFolders) };
+
         var spec = new TargetSpec
         {
             ExecutablePath = viaDotnet ? full : found,
@@ -318,9 +352,17 @@ public static class TargetFactory
         // dotnet runs an F# script through F# Interactive, which is what is named.
         var fsharp = extension.Equals(".fsx", StringComparison.OrdinalIgnoreCase) ? "F# Interactive, dotnet fsi" : null;
         var interpreterNamed = python?.Explained ?? go?.Explained ?? node?.Explained ?? csharp?.Explained ?? fsharp ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
-        var how = (testsRunBy is not null
+        var how = (testsRunBy is "doctest"
+            ? $"Running the examples in its docstrings with doctest, docstring by docstring, using {interpreterNamed}."
+            : testsRunBy is "assert"
+            ? $"Running it with each assert at its top checked on its own, so one that fails does not hide the ones after it, using {interpreterNamed}."
+            : testsRunBy is not null
             ? $"Running its tests with {testsRunBy}, test by test, using {interpreterNamed}."
-            : $"Running it{together} with {interpreterNamed}.") + ((python?.CodeNeeds ?? go?.CodeNeeds ?? node?.CodeNeeds ?? csharp?.Said) is { } needs ? " " + needs : "");
+            : $"Running it{together} with {interpreterNamed}.") + ((python?.CodeNeeds ?? go?.CodeNeeds ?? node?.CodeNeeds ?? csharp?.Said) is { } needs ? " " + needs : "") +
+            (importFolders.Count > 0
+                ? $" Python also looks for the program's own modules in {string.Join(" and ", importFolders)}, " +
+                  "where they are - as it does when it is run from the project's folder."
+                : "");
 
         return new LaunchPlan(spec, null, how) { ChosenFile = full, SourceFolder = workingDirectory };
     }

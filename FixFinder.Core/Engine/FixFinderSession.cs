@@ -446,7 +446,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
     ];
 
     /// <summary>Windows' own sentence refusing to start the program, when a failed run printed one.</summary>
-    private static string? WindowsRefused(TargetRunResult run) =>
+    internal static string? WindowsRefused(TargetRunResult run) =>
         run.ExitCode is 0 ? null : RefusalMessages.FirstOrDefault(message =>
             run.Lines.Any(line => line.Text.Contains(message, StringComparison.Ordinal)));
 

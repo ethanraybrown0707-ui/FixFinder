@@ -101,6 +101,21 @@ internal static class BracePatternGuides
             }
             """),
 
+        GuideFor(["logic-java-best-starts-at-zero"], "A largest or smallest started at 0",
+            "A loop that keeps the largest item of an array starts with some value to compare the first item against. Started at " +
+            "0, it only works when some item is above 0: with temperatures of -5, -2 and -8 no item is bigger than 0, so it stays " +
+            "0 - a temperature that was never in the array. A smallest started at 0 stays 0 the same way when every item is above 0.",
+            "The program prints or uses a value the array does not have, with no error to say so.",
+            "Start it at the array's first item, so it is one of the array's values from the start.",
+            """
+            int highest = temperatures[0];
+            for (int t : temperatures) {
+                if (t > highest) {
+                    highest = t;
+                }
+            }
+            """),
+
         GuideFor(["logic-java-scanner-skips-line"], "nextLine() straight after reading a number",
             "When someone types 42 and presses Enter, the input holds 42 followed by an invisible end of line. nextInt() takes " +
             "the 42 but leaves the end of line behind, so the next nextLine() finds it straight away and returns an empty line.",
@@ -131,6 +146,18 @@ internal static class BracePatternGuides
             """
             if (a.equals(b)) {
                 System.out.println("same");
+            }
+            """),
+
+        GuideFor(["logic-java-record-equality"], "Records compared with ==",
+            "A record holds a few values - a Point its x and y - and == on two records asks whether they are the very same " +
+            "object, not whether they hold the same values. Two records made separately are two objects, so new Point(1, 2) == " +
+            "new Point(1, 2) is false. Every record has an equals that compares its values one by one.",
+            "Two records holding exactly the same values are said to be different, so the code for equal ones never runs.",
+            "Compare them with equals.",
+            """
+            if (a.equals(b)) {
+                System.out.println("same point");
             }
             """),
 
@@ -210,6 +237,20 @@ internal static class BracePatternGuides
             "Write the string with backticks.",
             """
             console.log(`Hello ${name}`);
+            """),
+
+        GuideFor(["logic-js-too-few-arguments"], "A function given fewer values than it takes",
+            "A function written with two parameters, function add(a, b), is meant to be given two values. Called with one, add(1), " +
+            "JavaScript does not stop the program: it gives the parameter that got nothing the value undefined, and the function " +
+            "carries on with it - 1 + undefined is NaN.",
+            "The function works with undefined where a value was meant, and the program prints NaN or a wrong answer, with no error.",
+            "Give the function every value it takes - or, if a value may be left out, give its parameter a default: function add(a, b = 0).",
+            """
+            function add(a, b) {
+                return a + b;
+            }
+
+            console.log(add(1, 2));
             """),
 
         GuideFor(["logic-js-compare-with-new-array"], "Comparing with []",

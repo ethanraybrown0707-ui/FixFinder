@@ -18,7 +18,41 @@ public sealed record Trace(IReadOnlyList<int> Lines, bool Cut, string? Error, st
 
     /// <summary>Whether the watched line was reached more times than were kept.</summary>
     public bool WatchedCut { get; init; }
+
+    /// <summary>
+    /// For each variable of the frame that stopped with the error - the followed names, and every other one that held a value
+    /// - the last changes to what it held, oldest first, up to the moment it stopped: given another value, or a list,
+    /// dictionary or set that grew or shrank. Empty unless names were followed.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<ValueChange>> Followed { get; init; } = new Dictionary<string, IReadOnlyList<ValueChange>>();
+
+    /// <summary>How many times each line of the file ran, over the whole run, when names were followed.</summary>
+    public IReadOnlyDictionary<int, int> TimesRun { get; init; } = new Dictionary<int, int>();
+
+    /// <summary>The last calls to the file's own functions that gave back None, oldest first, when names were followed.</summary>
+    public IReadOnlyList<NoneReturned> GaveNone { get; init; } = [];
+
+    /// <summary>
+    /// For each line asked about - an if, elif or while around the line it stopped on - what the variables of the call that
+    /// stopped held the last time that call reached the line, as it was reached, before the line ran. A line that call did not
+    /// reach is not here.
+    /// </summary>
+    public IReadOnlyDictionary<int, IReadOnlyDictionary<string, string>> Decided { get; init; } = new Dictionary<int, IReadOnlyDictionary<string, string>>();
 }
+
+/// <summary>One change to what a followed name held.</summary>
+/// <param name="Line">The line that ran just before the change was seen - the one that made it - or null when the name already held it as its frame began: a parameter.</param>
+/// <param name="Value">What it held after the change, as Python writes it, cut to 60 characters.</param>
+/// <param name="CalledFrom">For a parameter, the line of the file the call was made from, when it was made from the file.</param>
+public sealed record ValueChange(int? Line, string Value, int? CalledFrom);
+
+/// <summary>One call to a function of the file that gave back None, other than by stopping with an error.</summary>
+/// <param name="Function">The function's name.</param>
+/// <param name="Line">The line the call ended on: its return, or the last line it ran when it reached its end.</param>
+/// <param name="CalledFrom">The line of the file the call was made from, or null when it was called from elsewhere.</param>
+/// <param name="Given">What each of its parameters held as the call began.</param>
+/// <param name="TimesRun">How many times each line ran during that call.</param>
+public sealed record NoneReturned(string Function, int Line, int? CalledFrom, IReadOnlyDictionary<string, string> Given, IReadOnlyDictionary<int, int> TimesRun);
 
 /// <summary>
 /// Dynamic instrumentation for Python: runs the program, or one of its functions, under sys.settrace and records every
@@ -34,7 +68,7 @@ public static class PythonProbe
     private const int MostStates = 200;
 
     private const string Script = """
-        import ast, json, os, runpy, sys, threading
+        import ast, collections, json, os, runpy, sys, threading, types
         out, target, mode = sys.argv[1], os.path.abspath(sys.argv[2]), sys.argv[3]
         wanted = os.path.normcase(target)
         lines, state = [], {"cut": False, "watchcut": False}
@@ -47,6 +81,82 @@ public static class PythonProbe
                 lines.append(line)
             else:
                 state["cut"] = True
+        missing = object()
+        follow = [name for name in os.environ.get("FIXFINDER_FOLLOW", "").split(",") if name]
+        follow_scope = os.environ.get("FIXFINDER_FOLLOW_IN", "<module>")
+        follow_line = int(os.environ.get("FIXFINDER_FOLLOW_LINE", "0"))
+        decisions = {int(line) for line in os.environ.get("FIXFINDER_DECISIONS", "").split(",") if line}
+        decided, decided_when_raised, decided_at_error = {}, {}, {}
+        times_run = collections.Counter()
+        held, changes, previous_line, times_run_in_call, started_with, unwinding = {}, {}, {}, {}, {}, set()
+        gave_none = collections.deque(maxlen=50)
+        followed_at_error = {}
+        not_values = (types.ModuleType, types.FunctionType, types.BuiltinFunctionType, type)
+        sizes = {}
+        def names_in(frame):
+            # Every variable of the frame that holds a value - not a module, a function or a class it can see - as many as
+            # a timeline can show, and the ones asked about whatever else there is.
+            own = [name for name, value in list(frame.f_locals.items()) if not name.startswith("__") and not isinstance(value, not_values)]
+            return list(dict.fromkeys(follow + own[:30]))
+        def resized(key, name, value):
+            # A list, dictionary or set that grew or shrank has changed, though the name still holds the same one.
+            if not isinstance(value, (list, dict, set)):
+                return False
+            size, sizes[(key, name)] = sizes.get((key, name)), len(value)
+            return size is not None and size != len(value)
+        def caller_line(frame):
+            caller = frame.f_back
+            return caller.f_lineno if caller is not None and os.path.normcase(caller.f_code.co_filename) == wanted else None
+        def followed(frame, event, arg):
+            key, scope = id(frame), frame.f_code.co_name
+            if event == "line":
+                times_run[frame.f_lineno] += 1
+                unwinding.discard(key)
+                if scope != "<module>":
+                    times_run_in_call.setdefault(key, collections.Counter())[frame.f_lineno] += 1
+                    if key not in previous_line:
+                        code = frame.f_code
+                        parameters = code.co_varnames[:code.co_argcount + code.co_kwonlyargcount]
+                        started_with[key] = {name: repr(frame.f_locals.get(name))[:60] for name in parameters}
+            if scope == follow_scope:
+                if event == "line" and frame.f_lineno in decisions:
+                    # What the call held as it reached the condition, kept for this call alone: in a function that calls
+                    # itself, the last time any call reached the line need not be the call that stopped.
+                    decided[(key, frame.f_lineno)] = {name: repr(frame.f_locals[name])[:60] for name in names_in(frame) if name in frame.f_locals}
+                if event == "exception":
+                    # Each call the error passes through is told of it; the one it stopped in is picked from the traceback below.
+                    decided_when_raised[key] = {str(line): held_then for (owner, line), held_then in decided.items() if owner == key}
+                for name in names_in(frame):
+                    value = frame.f_locals.get(name, missing)
+                    grew = resized(key, name, value)
+                    if value is not held.get((key, name), missing) or grew:
+                        held[(key, name)] = value
+                        if value is not missing:
+                            made_by = previous_line.get(key)
+                            changes.setdefault((key, name), collections.deque(maxlen=50)).append(
+                                {"line": made_by, "value": repr(value)[:60], "from": caller_line(frame) if made_by is None else None})
+                if event == "exception" and frame.f_lineno == follow_line:
+                    followed_at_error.clear()
+                    followed_at_error.update({name: list(said) for (owner, name), said in changes.items() if owner == key})
+
+            if event == "line":
+                previous_line[key] = frame.f_lineno
+            elif event == "exception":
+                unwinding.add(key)
+            elif event == "return":
+                ran, given = times_run_in_call.pop(key, None), started_with.pop(key, {})
+                if arg is None and key not in unwinding and scope != "<module>":
+                    gave_none.append({"function": scope, "line": frame.f_lineno, "from": caller_line(frame), "given": given,
+                                      "ran": {str(line): times for line, times in (ran or {}).items()}})
+                unwinding.discard(key)
+                previous_line.pop(key, None)
+                for owner, name in [each for each in changes if each[0] == key]:
+                    changes.pop((owner, name), None)
+                for owner, name in [each for each in held if each[0] == key]:
+                    held.pop((owner, name), None)
+                    sizes.pop((owner, name), None)
+                for owner, line in [each for each in decided if each[0] == key]:
+                    decided.pop((owner, line), None)
         def local(frame, event, arg):
             if event == "line":
                 note(frame.f_lineno)
@@ -55,6 +165,8 @@ public static class PythonProbe
                         watched.append({k: repr(v)[:60] for k, v in list(frame.f_locals.items())[:12] if not k.startswith("__")})
                     else:
                         state["watchcut"] = True
+            if follow_line:
+                followed(frame, event, arg)
             return local
         def calls(frame, event, arg):
             if os.path.normcase(frame.f_code.co_filename) == wanted:
@@ -104,6 +216,7 @@ public static class PythonProbe
                 if os.path.normcase(trace.tb_frame.f_code.co_filename) == wanted:
                     line = trace.tb_lineno
                     values = {k: repr(v)[:60] for k, v in list(trace.tb_frame.f_locals.items())[:30] if not k.startswith("__")}
+                    decided_at_error = decided_when_raised.get(id(trace.tb_frame), {})
                 trace = trace.tb_next
             result["error"] = {"type": type(error).__name__, "message": str(error)[:300], "line": line, "values": values}
         finally:
@@ -111,6 +224,11 @@ public static class PythonProbe
             result["cut"] = state["cut"]
             result["watched"] = watched
             result["watchcut"] = state["watchcut"]
+            if follow_line:
+                result["followed"] = followed_at_error
+                result["times_run"] = {str(line): times for line, times in times_run.items()}
+                result["gave_none"] = list(gave_none)
+                result["decided"] = decided_at_error
             with open(out, "w", encoding="utf-8") as saved:
                 json.dump(result, saved)
         """;
@@ -120,6 +238,23 @@ public static class PythonProbe
         int watchLine = 0) =>
         TraceAsync(interpreter, file, ["program"], input, timeout, cancellationToken, watchLine);
 
+    /// <summary>
+    /// Runs the whole program with <paramref name="input"/> typed in, following what each of <paramref name="names"/> holds in
+    /// the frames of <paramref name="scope"/> - a function's name, or &lt;module&gt; for the file's own top level - up to the
+    /// moment it stops with an error on <paramref name="line"/>; how many times each line runs; and which calls to the file's
+    /// functions give back None.
+    /// </summary>
+    /// <param name="decisions">The lines whose values the call that stops is to be recorded at - the ifs, elifs and whiles around <paramref name="line"/>.</param>
+    public static Task<Trace?> FollowAsync(string interpreter, string file, string input, IReadOnlyList<string> names, string scope, int line,
+        TimeSpan timeout, CancellationToken cancellationToken, IReadOnlyList<int>? decisions = null) =>
+        TraceAsync(interpreter, file, ["program"], input, timeout, cancellationToken, following: new Dictionary<string, string>
+        {
+            ["FIXFINDER_FOLLOW"] = string.Join(",", names),
+            ["FIXFINDER_FOLLOW_IN"] = scope,
+            ["FIXFINDER_FOLLOW_LINE"] = line.ToString(),
+            ["FIXFINDER_DECISIONS"] = string.Join(",", decisions ?? []),
+        });
+
     /// <summary>Calls one top-level function of the file with keyword arguments written as a Python dict literal.</summary>
     /// <param name="watchLine">A line to record the variables at every time the run reaches it, or 0 for none.</param>
     public static Task<Trace?> CallAsync(string interpreter, string file, string function, string arguments, string input, TimeSpan timeout,
@@ -127,7 +262,7 @@ public static class PythonProbe
         TraceAsync(interpreter, file, ["call", function, arguments], input, timeout, cancellationToken, watchLine);
 
     private static async Task<Trace?> TraceAsync(string interpreter, string file, IReadOnlyList<string> how, string input, TimeSpan timeout,
-        CancellationToken cancellationToken, int watchLine = 0)
+        CancellationToken cancellationToken, int watchLine = 0, IReadOnlyDictionary<string, string>? following = null)
     {
         var folder = Path.Combine(Path.GetTempPath(), "FixFinder-probe", Guid.NewGuid().ToString("N")[..12]);
 
@@ -145,15 +280,14 @@ public static class PythonProbe
                 ["FIXFINDER_WATCH"] = watchLine.ToString(),
                 ["FIXFINDER_MOST_STATES"] = MostStates.ToString(),
             };
+            foreach (var (setting, value) in following ?? new Dictionary<string, string>()) environment[setting] = value;
 
-            // A notebook's code runs from the notebook's folder, where its data and its own modules are, not the script's.
+            // A notebook's code runs from the notebook's folder, where its data and its own modules are, not the script's; a
+            // file in a folder of its own imports the program's modules from the folders the program runs it with.
             var folderOfCode = NotebookScript.FolderOfCode(file);
-            if (!string.Equals(folderOfCode, Path.GetDirectoryName(Path.GetFullPath(file)), StringComparison.OrdinalIgnoreCase))
-            {
-                environment["PYTHONPATH"] = Environment.GetEnvironmentVariable("PYTHONPATH") is { Length: > 0 } already
-                    ? folderOfCode + Path.PathSeparator + already
-                    : folderOfCode;
-            }
+            var importFolders = ProgramLayout.PythonImportFolders(file, interpreter).ToList();
+            if (!string.Equals(folderOfCode, Path.GetDirectoryName(Path.GetFullPath(file)), StringComparison.OrdinalIgnoreCase)) importFolders.Insert(0, folderOfCode);
+            if (importFolders.Count > 0) environment["PYTHONPATH"] = ProgramLayout.PythonPathWith(importFolders);
 
             await new TargetRunner().RunAsync(new TargetSpec
             {
@@ -214,8 +348,48 @@ public static class PythonProbe
 
         var watchedCut = root.TryGetProperty("watchcut", out var more) && more.ValueKind == JsonValueKind.True;
 
+        var followed = root.TryGetProperty("followed", out var names) && names.ValueKind == JsonValueKind.Object
+            ? names.EnumerateObject().ToDictionary(
+                name => name.Name,
+                name => (IReadOnlyList<ValueChange>)name.Value.EnumerateArray()
+                    .Select(change => new ValueChange(NumberOrNull(change, "line"), change.GetProperty("value").GetString() ?? "", NumberOrNull(change, "from")))
+                    .ToList(),
+                StringComparer.Ordinal)
+            : new Dictionary<string, IReadOnlyList<ValueChange>>();
+
+        var timesRun = root.TryGetProperty("times_run", out var counted) && counted.ValueKind == JsonValueKind.Object ? LineCounts(counted) : new Dictionary<int, int>();
+
+        var gaveNone = root.TryGetProperty("gave_none", out var returns) && returns.ValueKind == JsonValueKind.Array
+            ? returns.EnumerateArray()
+                .Select(call => new NoneReturned(
+                    call.GetProperty("function").GetString() ?? "",
+                    call.GetProperty("line").GetInt32(),
+                    NumberOrNull(call, "from"),
+                    call.GetProperty("given").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString() ?? "", StringComparer.Ordinal),
+                    LineCounts(call.GetProperty("ran"))))
+                .ToList()
+            : [];
+
+        var decided = root.TryGetProperty("decided", out var conditions) && conditions.ValueKind == JsonValueKind.Object
+            ? conditions.EnumerateObject()
+                .Where(condition => int.TryParse(condition.Name, out _))
+                .ToDictionary(
+                    condition => int.Parse(condition.Name),
+                    condition => (IReadOnlyDictionary<string, string>)condition.Value.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString() ?? "", StringComparer.Ordinal))
+            : new Dictionary<int, IReadOnlyDictionary<string, string>>();
+
         if (root.GetProperty("error") is not { ValueKind: JsonValueKind.Object } error)
-            return new Trace(lines, cut, null, null, null, new Dictionary<string, string>()) { Watched = watched, WatchedCut = watchedCut };
+        {
+            return new Trace(lines, cut, null, null, null, new Dictionary<string, string>())
+            {
+                Watched = watched,
+                WatchedCut = watchedCut,
+                Followed = followed,
+                TimesRun = timesRun,
+                GaveNone = gaveNone,
+                Decided = decided,
+            };
+        }
 
         var values = error.GetProperty("values").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString() ?? "", StringComparer.Ordinal);
         return new Trace(lines, cut, error.GetProperty("type").GetString(), error.GetProperty("message").GetString(),
@@ -223,6 +397,19 @@ public static class PythonProbe
         {
             Watched = watched,
             WatchedCut = watchedCut,
+            Followed = followed,
+            TimesRun = timesRun,
+            GaveNone = gaveNone,
+            Decided = decided,
         };
     }
+
+    private static int? NumberOrNull(JsonElement holder, string property) =>
+        holder.TryGetProperty(property, out var number) && number.ValueKind == JsonValueKind.Number ? number.GetInt32() : null;
+
+    /// <summary>A line-to-count table the script wrote with each line number as a key in quotes.</summary>
+    private static Dictionary<int, int> LineCounts(JsonElement counts) =>
+        counts.EnumerateObject()
+            .Where(entry => int.TryParse(entry.Name, out _))
+            .ToDictionary(entry => int.Parse(entry.Name), entry => entry.Value.GetInt32());
 }

@@ -65,7 +65,10 @@ public static class SymbolicChecks
 
         foreach (var ((check, span), outcome) in report.Outcomes)
         {
-            if (!(outcome.Forced || outcome.FromInput) || found.Any(f => f.CheckId == check && f.Span.File == span.File && f.Span.Line == span.Line)) continue;
+            // A way that fails only if items of the function's own list are as it took them is said as possible: FixFinder
+            // does not follow what such a list holds, so it cannot say the way is ever taken.
+            if (!(outcome.Forced || outcome.FromInput || outcome.Unfollowed is not null) ||
+                found.Any(f => f.CheckId == check && f.Span.File == span.File && f.Span.Line == span.Line)) continue;
 
             refined.Add(new AnalysisFinding(check, span, Message(check, span, outcome, evaluator.Language, source), Severity.Error,
                 outcome.Forced ? Confidence.Likely : Confidence.Possible, FindingKind.Runtime, FoundBy)
@@ -105,14 +108,16 @@ public static class SymbolicChecks
 
         if (!outcome.Forced)
         {
-            var when = outcome.Witness?.ToString() ?? "for some input";
-            return check switch
+            var unfollowed = outcome.FromInput ? null : outcome.Unfollowed;
+            var when = unfollowed is { Count: > 0 } ways ? WaysTaken(ways, Quote, language) : outcome.Witness?.ToString() ?? "for some input";
+            var failing = check switch
             {
                 "analysis-division-by-zero" => $"`{culprit}` is 0 when {when}, so `{whole}` fails with {Failure(language, "zero")}",
                 "analysis-index-out-of-range" => $"`{culprit}` is outside the list when {when}, so `{whole}` fails with {Failure(language, "index")}",
                 "analysis-null-used" => $"`{culprit}` is {none} when {when}, so `{whole}` fails with {Failure(language, "null")}",
                 _ => $"`{culprit}` is empty when {when}, so `{whole}` fails with {Failure(language, "empty")}",
             };
+            return unfollowed is { Count: > 0 } tested ? $"{failing} - FixFinder cannot tell what {ListsOf(tested, Quote)} by then, so this may never happen" : failing;
         }
 
         // The way through that is certain to fail, with an input that takes the program down it when one is known. The input
@@ -137,6 +142,33 @@ public static class SymbolicChecks
             "analysis-null-used" => $"On one way through the code `{culprit}` is always {none} here, so `{whole}` fails with {Failure(language, "null")}",
             _ => $"On one way through the code `{culprit}` is always empty here, so `{whole}` fails with {Failure(language, "empty")}",
         };
+    }
+
+    /// <summary>
+    /// How the failing way took the items it tested: "`done[i]` is true every time it is tested" - the way a search that
+    /// finds nothing goes, which is all that leaves its answer at the value it started with.
+    /// </summary>
+    private static string WaysTaken(IReadOnlyList<UnfollowedItem> ways, Func<Expr, string> quote, SourceLanguage language)
+    {
+        var (yes, no) = language == SourceLanguage.Python ? ("True", "False") : ("true", "false");
+
+        return string.Join(" and ", ways.GroupBy(way => quote(way.Item), StringComparer.Ordinal).Take(2).Select(tested =>
+        {
+            var truths = tested.Select(way => way.True).Distinct().ToList();
+            return truths switch
+            {
+                [var only] when tested.Count() == 1 => $"`{tested.Key}` is {(only ? yes : no)}",
+                [var only] => $"`{tested.Key}` is {(only ? yes : no)} every time it is tested",
+                _ => $"`{tested.Key}` is {yes} on some turns and {no} on others",
+            };
+        }));
+    }
+
+    /// <summary>The lists those items are taken from, each named once: "`done` holds", "`a` and `b` hold".</summary>
+    private static string ListsOf(IReadOnlyList<UnfollowedItem> ways, Func<Expr, string> quote)
+    {
+        var lists = ways.Select(way => quote(way.Item is ElementAccess { Target: var list } ? list : way.Item)).Distinct(StringComparer.Ordinal).Take(2).ToList();
+        return lists.Count == 1 ? $"`{lists[0]}` holds" : $"`{lists[0]}` and `{lists[1]}` hold";
     }
 
     private static string Failure(SourceLanguage language, string kind) => kind switch

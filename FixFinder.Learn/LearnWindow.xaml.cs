@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using FixFinder.Core;
+using FixFinder.Core.Engine;
 using FixFinder.Core.Teaching;
 using FixFinder.Desktop;
 
@@ -15,6 +16,9 @@ public partial class LearnWindow : Window
     private readonly ProblemStore _problems = new();
     private readonly LearnProgress _progress = LearnProgress.Load();
 
+    /// <summary>The checks FixFinder kept, read here and never written: which kinds of mistake turn up lately.</summary>
+    private readonly CheckHistory _history = CheckHistory.Load();
+
     /// <summary>The lesson on the page, or null when the page shows a concept with no lesson in its language.</summary>
     private Lesson? _lesson;
 
@@ -23,6 +27,7 @@ public partial class LearnWindow : Window
     public LearnWindow(string? codeToOpen = null)
     {
         InitializeComponent();
+        Theme.FollowInTitleBar(this);
         ScreenFit.Apply(this);
 
         foreach (var language in Lessons.All.Select(lesson => lesson.Language.Name).Distinct())
@@ -77,15 +82,25 @@ public partial class LearnWindow : Window
 
     private void LanguageBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => ShowLessonList();
 
-    /// <summary>The lessons of the language chosen, each with how many of its questions have been answered right.</summary>
+    /// <summary>
+    /// The lessons of the language chosen, each with how many of its questions have been answered right - those on the kinds of
+    /// mistake the person's checks found lately in programs of that language first, the most often first, then those found
+    /// only in the 30 days before - each with how often it turned up in both.
+    /// </summary>
     private void ShowLessonList()
     {
         if ((LanguageBox.SelectedItem as ComboBoxItem)?.Tag is not string language) return;
 
+        var now = DateTimeOffset.Now;
+        var lately = RecurringMistakes.TimesLately(_history.Checks, language, now);
+        var before = RecurringMistakes.TimesBefore(_history.Checks, language, now);
         LessonsList.ItemsSource = Lessons.All
             .Where(lesson => lesson.Language.Name == language)
-            .Select(lesson => new LessonChoice(lesson, ProgressOf(lesson)))
+            .Select(lesson => new LessonChoice(lesson, ProgressOf(lesson), lately.GetValueOrDefault(lesson.Concept.Code), before.GetValueOrDefault(lesson.Concept.Code)))
+            .OrderByDescending(choice => choice.TimesLately)
+            .ThenByDescending(choice => choice.TimesBefore)
             .ToList();
+        LatelyText.Visibility = lately.Count > 0 || before.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private string ProgressOf(Lesson lesson) =>

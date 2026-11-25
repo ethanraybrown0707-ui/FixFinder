@@ -126,6 +126,31 @@ public sealed record Finding
     /// </summary>
     public StateTrace? State { get; init; }
 
+    /// <summary>
+    /// Where the value the program stopped on came from - the line that gave it, and how - recorded by a second run of the
+    /// program. Null wherever that run did not show it, because a cause nobody saw would be a guess.
+    /// </summary>
+    public RootCause? RootCause { get; init; }
+
+    /// <summary>
+    /// What each variable held, line by line, where the program stopped - from a second run that recorded it. Empty wherever
+    /// no run recorded it, because a value nobody saw would be a guess.
+    /// </summary>
+    public IReadOnlyList<VariableHistory> Timeline { get; init; } = [];
+
+    /// <summary>
+    /// How the run got to the line it stopped on: the program's own calls its stack trace listed, outermost first, each line
+    /// that called the next function in. Empty for a finding no run stopped on, or whose trace listed one of its lines alone.
+    /// </summary>
+    public IReadOnlyList<PathStep> CallPath { get; init; } = [];
+
+    /// <summary>
+    /// Why the line it stopped on ran: the ifs, elifs, elses and whiles around it, whether each was true or false the last time
+    /// the call that stopped reached it, and what its condition read then - from a second run that recorded it. Empty wherever
+    /// no run recorded it.
+    /// </summary>
+    public IReadOnlyList<BranchTaken> Branches { get; init; } = [];
+
     /// <summary>What the proposed fix changes in what the program does, found by comparing it with the original path by path.</summary>
     public IReadOnlyList<string>? FixChanges { get; init; }
 

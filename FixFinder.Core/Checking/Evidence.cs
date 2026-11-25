@@ -43,6 +43,27 @@ public static class Evidence
         {
             parts.Add("the program was run with what you gave it, and stopped before it printed what you said it should");
         }
+        else if (finding.RuleId == "tests-miss-change")
+        {
+            parts.Add("the tests were run with the line changed in a copy, and every one passed");
+        }
+        else if (finding.RuleId is "algorithm-sort-wrong" or "algorithm-search-wrong" or "algorithm-extreme-wrong" or "algorithm-prime-wrong" or "algorithm-leap-year-wrong" or "algorithm-factorial-wrong" or "algorithm-reversal-wrong" or "algorithm-gcd-wrong" or "algorithm-fibonacci-wrong" or "algorithm-merge-wrong" or "algorithm-in-order-wrong" or "algorithm-palindrome-wrong" or "algorithm-round-trip-wrong")
+        {
+            parts.Add("the function was called on lists, numbers or words of FixFinder's own, and one came back wrong");
+        }
+        else if (finding.RuleId == "analysis-same-answer-always")
+        {
+            parts.Add("every return of the function was read, and each gives back the same answer");
+        }
+        else if (finding.RuleId == "analysis-duplicate-function")
+        {
+            parts.Add("the functions' lines were compared one by one, with their own names set aside, and are the same");
+        }
+        else if (finding.RuleId == "analysis-circular-import")
+        {
+            parts.Add("the program's imports were played out from the file that is run, in the order " +
+                      (Path.GetExtension(finding.File).ToLowerInvariant() is ".py" or ".pyw" ? "Python" : "Node") + " runs them");
+        }
         else if (finding.FoundBy is { Length: > 0 } technique)
         {
             parts.Add($"following the values through the code - {technique} - showed it");
@@ -71,14 +92,18 @@ public static class Evidence
     /// Where the confidence comes from, in a few words to go beside it - read off what happened, as <see cref="For"/> is,
     /// strongest first: a run that broke as the analysis said it would; the program crashing, or printing the wrong thing,
     /// when it ran; the compiler refusing it; an input that fails, worked out from the code - which can still depend on what
-    /// is typed in, so it is not called proof; the values followed through the code; or the way the code is written alone.
+    /// is typed in, so it is not called proof; a Python program's imports followed from the file that is run; the values
+    /// followed through the code; or the way the code is written alone.
     /// </summary>
     public static string Source(Finding finding) => finding switch
     {
         { Confirmation.Length: > 0 } => "run reproduced it",
         { Error: not null, Kind: FindingKind.Syntax } => "compiler said so",
-        { Error: not null } or { RuleId: "wrong-output" or "stopped-before-expected-output" } => "seen when it ran",
+        { Error: not null } or { RuleId: "wrong-output" or "stopped-before-expected-output" or "algorithm-sort-wrong" or "algorithm-search-wrong" or "algorithm-extreme-wrong" or "algorithm-prime-wrong" or "algorithm-leap-year-wrong" or "algorithm-factorial-wrong" or "algorithm-reversal-wrong" or "algorithm-gcd-wrong" or "algorithm-fibonacci-wrong" or "algorithm-merge-wrong" or "algorithm-in-order-wrong" or "algorithm-palindrome-wrong" or "algorithm-round-trip-wrong" or "tests-miss-change" } => "seen when it ran",
         { Witness.Length: > 0 } => "failing input worked out",
+        { RuleId: "analysis-circular-import" } => "imports followed from the file that is run",
+        { RuleId: "analysis-duplicate-function" } => "functions compared line by line",
+        { RuleId: "analysis-same-answer-always" } => "every return read",
         { FoundBy.Length: > 0 } => "values followed through the code",
         _ => "pattern only",
     };

@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using FixFinder.Core.Execution;
+using FixFinder.Core.LocalFixes;
 
 namespace FixFinder.Core.Checking;
 
@@ -24,7 +25,13 @@ public static partial class ProgramFiles
         "bin", "obj", "out", "target", "build", "node_modules", ".git", "__pycache__", ".venv", "venv",
     };
 
-    [GeneratedRegex(@"(?m)^\s*(?:from\s+(?<from>\.*[\w.]*)\s+import\s+(?<names>[\w\s,*()]+)|import\s+(?<modules>[\w.]+(?:\s+as\s+\w+)?(?:\s*,\s*[\w.]+(?:\s+as\s+\w+)?)*))")]
+    /// <summary>
+    /// A Python import: from a import b, c - or (b, c) in brackets, over as many lines as they take - and import a, b as c.
+    /// Each runs to the end of its line, but for the brackets: the names once ran on over line ends while the lines after
+    /// held only words and spaces, so after from collections import deque the next lines' own from ... imports were read
+    /// as more of its names, and the modules they named were never found.
+    /// </summary>
+    [GeneratedRegex(@"(?m)^[ \t]*(?:from[ \t]+(?<from>\.*[\w.]*)[ \t]+import[ \t]*(?<names>\([^)]*\)|[\w \t,*]+)|import[ \t]+(?<modules>[\w.]+(?:[ \t]+as[ \t]+\w+)?(?:[ \t]*,[ \t]*[\w.]+(?:[ \t]+as[ \t]+\w+)?)*))")]
     private static partial Regex PythonImport();
 
     [GeneratedRegex(@"(?:require\s*\(\s*|import\s*\(\s*|\bfrom\s+|^\s*import\s+)['""](?<path>\.{1,2}/[^'""]+)['""]", RegexOptions.Multiline)]
@@ -71,6 +78,80 @@ public static partial class ProgramFiles
         return new Found(distinct.Take(MostFiles).ToList(), Math.Max(0, distinct.Count - MostFiles), !lookedAtAll);
     }
 
+    /// <summary>One of a program's own files, and the others of its own that it uses.</summary>
+    public sealed record FileUse(string File, IReadOnlyList<string> Uses);
+
+    /// <summary>
+    /// How the files Read found for a Python, JavaScript or TypeScript program use each other: each file, in the order they
+    /// were found, with the others of them it names in an import or require that is code - one in a comment, a docstring or
+    /// other text is not. A file of any other language is left out, as are files Read did not find.
+    /// </summary>
+    public static IReadOnlyList<FileUse> Uses(Found found)
+    {
+        var program = found.Files.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var uses = new List<FileUse>();
+
+        foreach (var file in found.Files)
+        {
+            (string? Text, Syntax Syntax, Func<string, IEnumerable<(Match Import, string File)>>? Imports) read = Path.GetExtension(file).ToLowerInvariant() switch
+            {
+                ".py" or ".pyw" or ".ipynb" => (PythonCodeOf(file), Syntax.Python, text => PythonImportsOf(file, text)),
+                ".js" or ".mjs" or ".cjs" => (TextOf(file), Syntax.CLike, text => JavaScriptImportsOf(file, text)),
+                ".ts" or ".mts" or ".cts" => (TextOf(file), Syntax.CLike, text => TypeScriptImportsOf(file, text)),
+                _ => (null, Syntax.CLike, null),
+            };
+            if (read is not { Text: { } code, Imports: { } importsOf }) continue;
+
+            var lines = code.Split('\n');
+            var masked = CodeText.MaskAll([.. lines.Select(line => line.TrimEnd('\r'))], read.Syntax);
+            var used = importsOf(code)
+                .Where(imported => IsCode(imported.Import, code, lines, masked))
+                .Select(imported => Path.GetFullPath(imported.File))
+                .Where(target => program.Contains(target) && !string.Equals(target, file, StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            uses.Add(new FileUse(file, used));
+        }
+
+        return uses;
+    }
+
+    /// <summary>
+    /// Whether the word an import starts with - import, from, require - is code: masking blanks one in a comment, a docstring
+    /// or other text, and keeps every line as long as it was, so the word is where it was only when it is code.
+    /// </summary>
+    private static bool IsCode(Match import, string text, IReadOnlyList<string> lines, IReadOnlyList<string> masked)
+    {
+        var at = import.Index;
+        while (at < import.Index + import.Length && char.IsWhiteSpace(text[at])) at++;
+
+        var line = 0;
+        var lineStart = 0;
+        while (line + 1 < lines.Count && lineStart + lines[line].Length + 1 <= at)
+        {
+            lineStart += lines[line].Length + 1;
+            line++;
+        }
+
+        var column = at - lineStart;
+        var word = new string(text[at..].TakeWhile(char.IsLetter).ToArray());
+        return word.Length > 0 && line < masked.Count && column + word.Length <= masked[line].Length && masked[line].Substring(column, word.Length) == word;
+    }
+
+    /// <summary>
+    /// The map in words, a line for each file that uses others - `main.py` uses `grades.py` and `marks.py` - each named from
+    /// the chosen file's folder, in the order the files were found; nothing when no file uses another.
+    /// </summary>
+    public static IReadOnlyList<string> UsesSaid(IReadOnlyList<FileUse> uses, string chosen)
+    {
+        var folder = Path.GetDirectoryName(Path.GetFullPath(chosen))!;
+        string Named(string file) => $"`{Path.GetRelativePath(folder, file).Replace(Path.DirectorySeparatorChar, '/')}`";
+
+        return [.. uses.Where(use => use.Uses.Count > 0).Select(use => $"{Named(use.File)} uses {Listed([.. use.Uses.Select(Named)])}")];
+
+        static string Listed(IReadOnlyList<string> names) => names.Count == 1 ? names[0] : $"{string.Join(", ", names.SkipLast(1))} and {names[^1]}";
+    }
+
     /// <summary>The chosen file and those it imports, and so on, nearest first - and whether every one was reached.</summary>
     private static (IReadOnlyList<string> Files, bool LookedAtAll) Follow(string chosen, Func<string, IEnumerable<string>> neighbours)
     {
@@ -89,12 +170,16 @@ public static partial class ProgramFiles
         return (found, next >= found.Count);
     }
 
-    private static IEnumerable<string> PythonNeighbours(string file)
-    {
-        // A notebook's imports are in the code of its cells, not in the JSON around them.
-        var code = Path.GetExtension(file).Equals(".ipynb", StringComparison.OrdinalIgnoreCase) ? NotebookScript.CodeIn(file) : TextOf(file);
-        if (code is not { } text) yield break;
+    private static IEnumerable<string> PythonNeighbours(string file) =>
+        PythonCodeOf(file) is { } text ? PythonImportsOf(file, text).Select(imported => imported.File) : [];
 
+    /// <summary>A Python file's code: a notebook's imports are in the code of its cells, not in the JSON around them.</summary>
+    private static string? PythonCodeOf(string file) =>
+        Path.GetExtension(file).Equals(".ipynb", StringComparison.OrdinalIgnoreCase) ? NotebookScript.CodeIn(file) : TextOf(file);
+
+    /// <summary>Each import in a Python file's code that names a file that is there, with that file.</summary>
+    private static IEnumerable<(Match Import, string File)> PythonImportsOf(string file, string text)
+    {
         // A notebook's code imports what is beside the notebook, not what is beside the script it was written to.
         var folder = NotebookScript.FolderOfCode(file);
 
@@ -119,8 +204,8 @@ public static partial class ProgramFiles
                     var asFile = Path.Combine(start, relative + ".py");
                     var asPackage = Path.Combine(start, relative, "__init__.py");
 
-                    if (File.Exists(asFile)) yield return asFile;
-                    else if (File.Exists(asPackage)) yield return asPackage;
+                    if (File.Exists(asFile)) yield return (import, asFile);
+                    else if (File.Exists(asPackage)) yield return (import, asPackage);
                 }
 
                 if (!import.Groups["from"].Success) continue;
@@ -130,7 +215,7 @@ public static partial class ProgramFiles
                 foreach (var name in import.Groups["names"].Value.Split(',', '(', ')').Select(n => n.Trim().Split(' ')[0]).Where(n => n.Length > 0))
                 {
                     var submodule = Path.Combine(package, name + ".py");
-                    if (File.Exists(submodule)) yield return submodule;
+                    if (File.Exists(submodule)) yield return (import, submodule);
                 }
             }
         }
@@ -271,23 +356,27 @@ public static partial class ProgramFiles
     /// The files a TypeScript file imports by their whole names - import { average } from "./helpers.ts" - as Node.js, which
     /// strips the types and adds no extension of its own, finds only those.
     /// </summary>
-    private static IEnumerable<string> TypeScriptNeighbours(string file)
-    {
-        if (TextOf(file) is not { } text) yield break;
+    private static IEnumerable<string> TypeScriptNeighbours(string file) =>
+        TextOf(file) is { } text ? TypeScriptImportsOf(file, text).Select(imported => imported.File) : [];
 
+    /// <summary>Each import or require in a TypeScript file that names a file that is there, with that file.</summary>
+    private static IEnumerable<(Match Import, string File)> TypeScriptImportsOf(string file, string text)
+    {
         var folder = Path.GetDirectoryName(file)!;
 
         foreach (Match import in JavaScriptImport().Matches(text))
         {
             var target = Path.GetFullPath(Path.Combine(folder, import.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar)));
-            if (File.Exists(target) && Path.GetExtension(target).ToLowerInvariant() is ".ts" or ".mts" or ".cts" or ".js" or ".mjs" or ".cjs") yield return target;
+            if (File.Exists(target) && Path.GetExtension(target).ToLowerInvariant() is ".ts" or ".mts" or ".cts" or ".js" or ".mjs" or ".cjs") yield return (import, target);
         }
     }
 
-    private static IEnumerable<string> JavaScriptNeighbours(string file)
-    {
-        if (TextOf(file) is not { } text) yield break;
+    private static IEnumerable<string> JavaScriptNeighbours(string file) =>
+        TextOf(file) is { } text ? JavaScriptImportsOf(file, text).Select(imported => imported.File) : [];
 
+    /// <summary>Each import or require in a JavaScript file that names a file that is there, with that file - as Node finds it.</summary>
+    private static IEnumerable<(Match Import, string File)> JavaScriptImportsOf(string file, string text)
+    {
         var folder = Path.GetDirectoryName(file)!;
 
         foreach (Match import in JavaScriptImport().Matches(text))
@@ -298,7 +387,7 @@ public static partial class ProgramFiles
             {
                 if (File.Exists(candidate) && Path.GetExtension(candidate) is ".js" or ".mjs" or ".cjs")
                 {
-                    yield return candidate;
+                    yield return (import, candidate);
                     break;
                 }
             }

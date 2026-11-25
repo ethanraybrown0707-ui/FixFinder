@@ -121,6 +121,29 @@ public class JavaScriptAnalysisTests(ITestOutputHelper output) : IDisposable
         Assert.DoesNotContain(findings, f => f.CheckId == "analysis-division-by-zero");
     }
 
+    /// <summary>
+    /// Following each way through the code reached prize.total / winners with winners 0 - the if only prints - and said it
+    /// fails with an ArithmeticException, which is Java's; Node.js printed Infinity for share({ total: 120 }, 0).
+    /// </summary>
+    [Fact]
+    public async Task ADivisorTheCodeLetsBeZeroIsStillNotAMistakeInJavaScript()
+    {
+        const string code = """
+            function share(prize, winners) {
+              if (winners === 0) {
+                console.log("none");
+              }
+              return prize.total / winners;
+            }
+
+            console.log(share({ total: 120 }, 0));
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-division-by-zero");
+    }
+
     [Fact]
     public async Task APositionPastTheEndIsNotAMistakeInJavaScript()
     {
@@ -205,5 +228,93 @@ public class JavaScriptAnalysisTests(ITestOutputHelper output) : IDisposable
 
         Assert.Empty(program.Problems);
         Assert.Contains(program.Functions, f => f.Name == "clean");
+    }
+
+    /// <summary>
+    /// A function written inside another that assigns the outer function's variable changes it. After the first loop i is 4
+    /// and rows 3; what comes between the loops decides whether the second runs. Run with node, each program printed i, rows
+    /// and more. The second loop runs, and is left alone, when rows is changed by a function declared there (11 10 0), by a
+    /// function expression held in a constant (11 10 0), by an arrow function (11 10 0), and by a function expression handed
+    /// to forEach (9 8 0). But for the arrow function, each was said never to run while the assignment was read as Python
+    /// reads one: as the inner function declaring a rows of its own. It never runs, and is reported, when the inner function
+    /// does declare a rows of its own and changes that (4 3 17), or changes only a count of its own (4 3 7).
+    /// </summary>
+    [Theory]
+    [InlineData("function bump() { rows += 7; } bump();", false)]
+    [InlineData("const bump = function () { rows = rows + 7; }; bump();", false)]
+    [InlineData("const bump = () => { rows += 7; }; bump();", false)]
+    [InlineData("extra.forEach(function (x) { rows += x; });", false)]
+    [InlineData("function bump() { let rows = 10; rows += 7; return rows; } more = bump();", true)]
+    [InlineData("function tally() { let count = 0; count += 7; return count; } more = tally();", true)]
+    public async Task WhatAnInnerFunctionAssignsToAnOuterVariableIsSeenByTheLoopAfterIt(string between, bool neverRuns)
+    {
+        var (_, findings) = await CheckAsync($$"""
+            function main() {
+                const extra = [2, 3];
+                let rows = 3;
+                let more = 0;
+                let i = 0;
+                while (i <= rows) i++;
+                {{between}}
+                while (i <= rows) i++;
+                console.log(i, rows, more);
+            }
+
+            main();
+            """);
+
+        int[] expected = neverRuns ? [8] : [];
+        Assert.Equal(expected, findings.Where(f => f.CheckId == "analysis-loop-never-runs").Select(f => f.Span.Line));
+    }
+
+    /// <summary>
+    /// Code at the top of a script whose variable a function declared beside it changes: run with node, the script printed
+    /// 11, so the second loop runs. It was said never to, bump's rows += 7 having been read as bump declaring a rows of its own.
+    /// </summary>
+    [Fact]
+    public async Task AFunctionThatAssignsAVariableOfTheScriptChangesIt()
+    {
+        var (_, findings) = await CheckAsync("""
+            let rows = 3;
+            let i = 0;
+            while (i <= rows) i++;
+            function bump() { rows += 7; }
+            bump();
+            while (i <= rows) i++;
+            console.log(i);
+            """);
+
+        Assert.Empty(findings.Where(f => f.CheckId == "analysis-loop-never-runs"));
+    }
+
+    /// <summary>
+    /// Each function's variables are its own, but never the module's: two functions with a parameter named value each keep
+    /// the name value, where the reader gave the second value' - and the 1,000th function value and 999 primes, which made
+    /// a file of 50,000 lines take minutes to read - while a function's own total still gets a name apart from the
+    /// module's total, which every function can change.
+    /// </summary>
+    [Fact]
+    public async Task EachFunctionsOwnVariablesKeepTheirNamesApartFromTheModules()
+    {
+        const string code = """
+            let total = 0;
+
+            function double(value) {
+                let total = value * 2;
+                return total;
+            }
+
+            function triple(value) {
+                return value * 3;
+            }
+
+            console.log(double(1), triple(1), total);
+            """;
+
+        var read = await CheckAsync(code);
+
+        foreach (var name in new[] { "double", "triple" })
+            Assert.Equal("value", read.Program.AllFunctions.Single(each => each.Name == name).Parameters.Single().Name);
+        Assert.Contains("total'", IrWalk.LocalNames(read.Program.AllFunctions.Single(each => each.Name == "double")));
     }
 }

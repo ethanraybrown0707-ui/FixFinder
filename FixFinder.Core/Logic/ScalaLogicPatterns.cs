@@ -28,7 +28,41 @@ public static partial class ScalaLogicPatterns
         Pattern("logic-scala-integer-average", IntegerAverage, Severity.Error),
         Pattern("logic-scala-result-discarded", ResultDiscarded),
         Pattern("logic-scala-option-get", OptionGet, confidence: Confidence.Possible),
+        Pattern("logic-scala-float-equality", FloatEquality, Severity.Suggestion, Confidence.Possible),
     ];
+
+    /// <summary>A name compared exactly with a decimal: <c>total == 0.3</c>, <c>total != 0.3</c>.</summary>
+    [GeneratedRegex(@"(?<![\w.])(?<name>[A-Za-z_]\w*)\s*(?<op>==|!=)\s*(?<value>\d*\.\d*[1-9]\d*)(?![\w.])")]
+    private static partial Regex DecimalCompared();
+
+    /// <summary>
+    /// A val or var given a decimal - val total = 0.1 + 0.2, or declared Double or Float - compared exactly with one:
+    /// decimal arithmetic is rarely exact, so total == 0.3 is false. The change compares within a tiny tolerance with math.abs.
+    /// </summary>
+    private static IEnumerable<LogicFinding> FloatEquality(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        var decimals = masked
+            .SelectMany(text => Regex.Matches(text, @"\b(?:val|var)\s+(?<name>[A-Za-z_]\w*)\s*(?::\s*(?:Double|Float)\s*)?=\s*[^=\n]*\d\.\d|\b(?:val|var)\s+(?<name>[A-Za-z_]\w*)\s*:\s*(?:Double|Float)\b"))
+            .Select(declared => declared.Groups["name"].Value)
+            .ToHashSet(StringComparer.Ordinal);
+        if (decimals.Count == 0) yield break;
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (DecimalCompared().Match(masked[index]) is not { Success: true } compared || !decimals.Contains(compared.Groups["name"].Value)) continue;
+
+            var (name, value) = (compared.Groups["name"].Value, compared.Groups["value"].Value);
+            var close = compared.Groups["op"].Value == "==" ? $"math.abs({name} - {value}) < 1e-9" : $"math.abs({name} - {value}) >= 1e-9";
+            var line = source.Lines[index];
+
+            yield return new LogicFinding(id, index + 1,
+                $"`{name}` is a decimal number compared exactly with {value}, and decimal arithmetic is rarely exact - 0.1 + 0.2 is 0.30000000000000004",
+                LocalFix.ReplaceLine(id, $"Compare within a small tolerance: {close}",
+                    "Most decimal fractions cannot be stored exactly in binary, so sums and products land a tiny amount away from the value " +
+                    "you expect. Checking that the difference is tiny, rather than zero, compares them the way you meant.",
+                    source.Path, index + 1, line[..compared.Index] + close + line[(compared.Index + compared.Length)..]));
+        }
+    }
 
     /// <summary><c>for (i &lt;- 0 to xs.length)</c>, in either of Scala's ways of writing a for.</summary>
     [GeneratedRegex(@"\bfor\s*[({]?\s*(?<variable>[A-Za-z_]\w*)\s*<-\s*0\s+to\s+(?<collection>[A-Za-z_]\w*)\.(?<measure>length|size)\b(?!\s*-\s*1)")]

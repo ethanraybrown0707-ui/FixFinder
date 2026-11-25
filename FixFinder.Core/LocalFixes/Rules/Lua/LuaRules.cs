@@ -134,11 +134,16 @@ public sealed partial class LuaMissingThenOrDo : ILocalFixRule
 
 /// <summary>
 /// "attempt to call a nil value (global 'averge')": a name Lua knows no value for - in Lua a name never given one is nil -
-/// within two letters of one the file does give a value to, and of only one, becomes that one on the line Lua names.
+/// within two letters of one the file does give a value to, and of only one, becomes that one on the line Lua names. A name
+/// called - prnt("hi") - is compared with Lua's own functions as well, when none of the file's is that close.
 /// </summary>
 public sealed partial class LuaNearestName : ILocalFixRule
 {
     public string Id => "lua-nearest-name";
+
+    /// <summary>The functions every Lua program has, without requiring anything.</summary>
+    private static readonly string[] LuaFunctions =
+        ["print", "pairs", "ipairs", "tostring", "tonumber", "type", "error", "assert", "require", "select", "next", "pcall", "setmetatable", "getmetatable", "rawget", "rawset"];
 
     [GeneratedRegex(@"^attempt to (?:perform arithmetic on|call|index|concatenate|compare \w+ with|compare) a nil value \(global '(?<name>\w+)'\)$")]
     private static partial Regex Message();
@@ -166,12 +171,14 @@ public sealed partial class LuaNearestName : ILocalFixRule
                 named.Add(given.Groups["function"].Value);
         }
 
-        if (CodeText.Nearest(wrong, named) is not { } right) return null;
+        var called = said.Value.StartsWith("attempt to call", StringComparison.Ordinal);
+        var ownName = CodeText.Nearest(wrong, named);
+        if ((ownName ?? (called ? CodeText.Nearest(wrong, LuaFunctions) : null)) is not { } right) return null;
         if (CodeText.ReplaceWord(at.Line, wrong, right, Syntax.Lua) is not { } corrected) return null;
 
         return LocalFix.ReplaceLine(Id, $"Change {wrong} to {right}",
             $"{wrong} is given no value anywhere, so to Lua it is nil - and nil cannot be used as a value here. {right}, a letter or two " +
-            "apart, is the name the file gives a value to.",
+            (ownName is not null ? "apart, is the name the file gives a value to." : "apart, is one of Lua's own functions."),
             at.Source.Path, at.Number, corrected);
     }
 }

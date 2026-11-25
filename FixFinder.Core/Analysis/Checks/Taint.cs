@@ -331,7 +331,9 @@ internal sealed class Taint(IrProgram program, CallTargets targets)
             if (targets.Resolve(call, function, IrWalk.LocalNames(function, assigningDeclares: IsPython)) is { } target &&
                 _summaries.TryGetValue(target.Function, out var summary))
             {
-                foreach (var (index, inside) in summary.ParametersReachSinks)
+                // A copy: a function that calls itself adds to this same summary as it goes - run(fallback, ...) inside
+                // run(command, fallback), where command reaches a sink, takes fallback there too.
+                foreach (var (index, inside) in summary.ParametersReachSinks.ToList())
                 {
                     if (Effects.ArgumentFor(call, target, index) is not { } argument) continue;
 

@@ -464,12 +464,30 @@ internal sealed class PythonAstReader(string file)
 
     private Expr? Optional(JsonElement node, string name) => Field(node, name) is { } value ? Expression(value) : null;
 
+    /// <summary>
+    /// A string constant's text, or null when it holds half of a character - "\ud800", a surrogate with no partner, which
+    /// Python allows in a string and JSON can write but .NET will not read as text.
+    /// </summary>
+    private static string? WholeCharacters(JsonElement text)
+    {
+        try
+        {
+            return text.GetString();
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
     private static Expr Constant(SourceSpan span, JsonElement? value) => value switch
     {
         null => new Literal(span, LiteralKind.Null, null),
         { ValueKind: JsonValueKind.True } => new Literal(span, LiteralKind.Boolean, true),
         { ValueKind: JsonValueKind.False } => new Literal(span, LiteralKind.Boolean, false),
-        { ValueKind: JsonValueKind.String } text => new Literal(span, LiteralKind.Text, text.GetString()),
+        { ValueKind: JsonValueKind.String } text => WholeCharacters(text) is { } written
+            ? new Literal(span, LiteralKind.Text, written)
+            : Opaque.Of(span, "text holding half a character"),
         { ValueKind: JsonValueKind.Number } number when IsWholeNumber(number) && number.TryGetInt64(out var whole) =>
             new Literal(span, LiteralKind.Integer, whole),
         { ValueKind: JsonValueKind.Number } number => new Literal(span, LiteralKind.Real, number.GetDouble()),

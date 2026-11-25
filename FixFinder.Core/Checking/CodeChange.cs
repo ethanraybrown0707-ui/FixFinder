@@ -39,6 +39,9 @@ public sealed record ChangeLine
     public string After => HasHighlight ? Text[(HighlightStart + HighlightLength)..] : "";
 }
 
+/// <summary>One row of a change shown side by side: the line as it is now, and the line as the fix leaves it - either null where the other side has a line with no partner.</summary>
+public sealed record SideBySideRow(ChangeLine? Now, ChangeLine? AfterTheFix);
+
 /// <summary>
 /// The user's code beside the code a fix would leave, built from the fix itself rather than from anything said about it.
 /// </summary>
@@ -66,6 +69,48 @@ public sealed record CodeChange
 
     public bool IsLong => Lines.Count > LongEnoughToFold;
 
+    /// <summary>
+    /// The change as two columns, row by row: the code as it is now beside the code as the fix leaves it. A line the fix
+    /// leaves alone is on both sides - on the right with the number it has once the fix is in - and each line the fix takes
+    /// out is beside the line put in its place, the first beside the first, with an empty side where one has more.
+    /// </summary>
+    public IReadOnlyList<SideBySideRow> SideBySide
+    {
+        get
+        {
+            var rows = new List<SideBySideRow>();
+            var takenOut = new List<ChangeLine>();
+            var putIn = new List<ChangeLine>();
+            var moved = 0;
+
+            foreach (var line in Lines)
+            {
+                if (line.Kind == ChangeKind.Removed) takenOut.Add(line);
+                else if (line.Kind == ChangeKind.Added) putIn.Add(line);
+                else
+                {
+                    moved += Paired(rows, takenOut, putIn);
+                    rows.Add(new SideBySideRow(line, line with { Number = line.Number + moved }));
+                }
+            }
+
+            Paired(rows, takenOut, putIn);
+            return rows;
+        }
+    }
+
+    /// <summary>Puts each line taken out beside the one put in its place, and says how far the lines below have moved.</summary>
+    private static int Paired(List<SideBySideRow> rows, List<ChangeLine> takenOut, List<ChangeLine> putIn)
+    {
+        for (var index = 0; index < Math.Max(takenOut.Count, putIn.Count); index++)
+            rows.Add(new SideBySideRow(index < takenOut.Count ? takenOut[index] : null, index < putIn.Count ? putIn[index] : null));
+
+        var moved = putIn.Count - takenOut.Count;
+        takenOut.Clear();
+        putIn.Clear();
+        return moved;
+    }
+
     /// <summary>A one-line summary of the size of the change, for a header the reader can fold.</summary>
     public string Summary => (RemovedCount, AddedCount) switch
     {
@@ -73,7 +118,7 @@ public sealed record CodeChange
         (0, var added) => added == 1 ? "1 line added" : $"{added} lines added",
         (var removed, 0) => removed == 1 ? "1 line removed" : $"{removed} lines removed",
         (1, 1) => "1 line changed",
-        var (removed, added) => $"{removed} lines replaced by {added}",
+        var (removed, added) => $"{removed} {(removed == 1 ? "line" : "lines")} replaced by {added}",
     };
 
     /// <summary>

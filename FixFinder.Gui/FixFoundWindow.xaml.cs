@@ -27,6 +27,7 @@ public partial class FixFoundWindow : Window
     public FixFoundWindow(FixFoundContext context)
     {
         InitializeComponent();
+        Theme.FollowInTitleBar(this);
         ScreenFit.Apply(this);
 
         _context = context;

@@ -828,6 +828,10 @@ public class PythonProjectTests(ITestOutputHelper output) : IDisposable
             "being imported, so its tests could not be run", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// The tests all pass, and so are measured: what they miss in bank.py - the owner never checked, the bound of a
+    /// withdrawal, a share that is not a whole number - are suggestions about the tests, and no mistake in the code.
+    /// </summary>
     [Fact]
     public async Task AUnittestFileWhoseTestsAllPassSaysSo()
     {
@@ -856,8 +860,15 @@ public class PythonProjectTests(ITestOutputHelper output) : IDisposable
 
         var report = await CheckAsync(tests);
 
-        Assert.Empty(report.Findings);
         Assert.Equal("No syntax errors, and all 2 of its tests pass", report.SyntaxSummary);
+        Assert.Equal("No logic mistakes found in the code", report.LogicSummary);
+        Assert.Contains("The tests were measured with 5 small changes to bank.py, each made on its own in a copy, of the kinds a mistake makes: " +
+                        "they caught 2 of the 5 that ran.", report.Notes);
+        Assert.Equal(
+            ["The tests do not notice `owner` changed to `balance` on line 7", "The tests do not notice `>` changed to `>=` on line 11",
+             "The tests do not notice `/` changed to `//` on line 16"],
+            report.Findings.Select(finding => finding.Title));
+        Assert.All(report.Findings, finding => Assert.Equal(("tests-miss-change", Severity.Suggestion), (finding.RuleId, finding.Severity)));
     }
 
     /// <summary>
@@ -1012,7 +1023,7 @@ public class PythonProjectTests(ITestOutputHelper output) : IDisposable
 
         var report = await CheckAsync(tests);
 
-        Assert.Empty(report.Findings.Where(finding => finding.RuleId == "test-failed"));
+        Assert.DoesNotContain(report.Findings, finding => finding.RuleId == "test-failed");
         Assert.Equal("No syntax errors, and all 3 of its tests pass", report.SyntaxSummary);
     }
 
@@ -1040,7 +1051,7 @@ public class PythonProjectTests(ITestOutputHelper output) : IDisposable
 
         var report = await CheckAsync(tests);
 
-        Assert.Empty(report.Findings.Where(finding => finding.Kind == FindingKind.Runtime));
+        Assert.DoesNotContain(report.Findings, finding => finding.Kind == FindingKind.Runtime);
         Assert.Contains(report.Notes, note => note.StartsWith(
             "pytest skipped the whole of test_stats.py - could not import 'no_such_stats_library': No module named 'no_such_stats_library' - so none of its tests were run.",
             StringComparison.Ordinal));
@@ -1090,7 +1101,7 @@ public class PythonProjectTests(ITestOutputHelper output) : IDisposable
             note.StartsWith("pytest would not run test_one.py's tests, so whether they pass is not known. It said: \"unrecognized arguments: --cov=src\" - " +
                             "and it takes options from ", StringComparison.Ordinal) &&
             note.EndsWith(@"\options\pytest.ini as well as from how it is run.", StringComparison.Ordinal));
-        Assert.Empty(report.Findings.Where(finding => finding.Kind == FindingKind.Runtime));
+        Assert.DoesNotContain(report.Findings, finding => finding.Kind == FindingKind.Runtime);
         Assert.Equal("No syntax errors, but pytest would not run its tests", report.SyntaxSummary);
     }
 
@@ -1140,7 +1151,7 @@ public class PythonProjectTests(ITestOutputHelper output) : IDisposable
             "test_totals.py's tests are written for pytest, which is not part of Python and is not installed for the Python it was run with, so they were not run",
             StringComparison.Ordinal));
         Assert.Equal("No syntax errors; its tests are written for pytest, which is not installed for the Python it ran with", plainReport.SyntaxSummary);
-        Assert.Empty(plainReport.Findings.Where(finding => finding.Kind == FindingKind.Runtime));
+        Assert.DoesNotContain(plainReport.Findings, finding => finding.Kind == FindingKind.Runtime);
 
         // Run as a program, a file that imports pytest stops there, as it would.
         var importingReport = await CheckAsync(importing);

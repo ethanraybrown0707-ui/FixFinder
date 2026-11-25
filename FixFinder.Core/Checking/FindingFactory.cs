@@ -91,6 +91,10 @@ public static partial class FindingFactory
             // asyncio.run inside an async def: the crash, and the check that finds the call, are one mistake.
             ("RuntimeError", "asyncio.run() cannot be called from a running event loop", ".py" or ".pyw") => "logic-python-asyncio-run-in-async",
 
+            // Imports that go round in a circle: the crash, and the check that plays the imports out to where they stop, are one
+            // mistake. Python 3.13 was seen to say it as cannot import name 'price_with_tax' from 'prices', with a word about renaming.
+            ("ImportError", var said, ".py" or ".pyw") when said.StartsWith("cannot import name", StringComparison.Ordinal) => "analysis-circular-import",
+
             // A function that called itself until there was no room left for the calls.
             ("RecursionError", _, ".py" or ".pyw") => "analysis-recursion-never-ends",
             ("StackOverflowError", _, ".java") => "analysis-recursion-never-ends",
@@ -230,6 +234,32 @@ public static partial class FindingFactory
         };
     }
 
+    /// <summary>A change to the code the tests call that every test still passed with: a suggestion on the line it was made to.</summary>
+    public static Finding FromMissedChange(MissedChange missed, int tests)
+    {
+        const string rule = "tests-miss-change";
+        var guide = Guidebook.For(missed.File, FindingKind.Logic, rule);
+        var found = $"Every one of the {tests} tests still passed with line {missed.Line} changed from `{missed.Was.Trim()}` to `{missed.Became.Trim()}` - " +
+                    $"{missed.Kind} - in a copy of the program, so that mistake there would go unnoticed.";
+
+        return new Finding
+        {
+            Kind = FindingKind.Logic,
+            Severity = Severity.Suggestion,
+            Confidence = Confidence.Certain,
+            File = missed.File,
+            Line = missed.Line,
+            Title = $"The tests do not notice `{missed.From}` changed to `{missed.To}` on line {missed.Line}",
+            Explanation = $"{found} {guide.Explanation}",
+            Found = found,
+            WhyItMatters = guide.WhyItMatters,
+            SuggestedFix = guide.SuggestedFix,
+            CorrectedExample = guide.Example,
+            RuleId = rule,
+            Family = rule,
+        };
+    }
+
     public static Finding FromWrongOutput(LogicRepairResult result, int runs, string file, SourceFile? source)
     {
         var stopped = result.Mismatch.Ending != RunEnding.Finished;
@@ -344,6 +374,8 @@ public static partial class FindingFactory
             "compile error" or "compile warning" or "link error" when error.ErrorCode is { Length: > 0 } code => $"{code}: {message}",
             "compile error" or "compile warning" or "link error" => Capitalised(message),
             _ when message.Length == 0 => error.ShortExceptionType ?? "Error",
+            // Go's "runtime error: invalid memory address or nil pointer dereference" already starts with its kind.
+            _ when error.ShortExceptionType is { Length: > 0 } kind && message.StartsWith(kind + ":", StringComparison.Ordinal) => message,
             _ => $"{error.ShortExceptionType ?? error.ErrorCode ?? "Error"}: {message}",
         };
     }

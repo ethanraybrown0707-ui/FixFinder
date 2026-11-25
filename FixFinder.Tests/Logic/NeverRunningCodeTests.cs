@@ -34,7 +34,12 @@ public class NeverRunningCodeTests : IDisposable
     [InlineData("Main.java", "logic-branch-never-reached", "class Main {\n    String size(int n) {\n        if (n > 10) {\n            return \"big\";\n        } else if (n > 100) {\n            return \"huge\";\n        }\n        return \"small\";\n    }\n}\n", 5,
         "        if (n > 100) {|            return \"huge\";|        } else if (n > 10) {|            return \"big\";")]
     [InlineData("Program.cs", "logic-branch-never-reached", "int n = 5;\nif (n >= 1)\n{\n    Console.WriteLine(\"one or more\");\n}\nelse if (n >= 3)\n{\n    Console.WriteLine(\"three or more\");\n}\n", 6,
-        "if (n >= 3)|{|    Console.WriteLine(\"three or more\");|}|else if (n >= 1)|{|    Console.WriteLine(\"one or more\");|}")]
+        "if (n >= 3)|{|    Console.WriteLine(\"three or more\");|}|else if (n >= 1)|{|    Console.WriteLine(\"one or more\");")]
+    // Blocks of other shapes, each moved whole with its }: a } on a line of its own before else if, and Allman blocks on one line.
+    [InlineData("app.js", "logic-branch-never-reached", "function grade(score) {\n    if (score >= 50) {\n        return \"C\";\n    }\n    else if (score >= 70) {\n        return \"B\";\n    }\n    return \"F\";\n}\n", 5,
+        "    if (score >= 70) {|        return \"B\";|    }|    else if (score >= 50) {|        return \"C\";")]
+    [InlineData("main.c", "logic-branch-never-reached", "int grade(int score) {\n    if (score >= 50)\n    { return 3; }\n    else if (score >= 70)\n    { return 2; }\n    return 1;\n}\n", 4,
+        "    if (score >= 70)|    { return 2; }|    else if (score >= 50)|    { return 3; }")]
     [InlineData("main.go", "logic-go-branch-never-reached", "package main\n\nfunc size(n int) string {\n\tif n > 1 {\n\t\treturn \"some\"\n\t} else if n > 5 {\n\t\treturn \"many\"\n\t}\n\treturn \"none\"\n}\n", 6,
         "\tif n > 5 {|\t\treturn \"many\"|\t} else if n > 1 {|\t\treturn \"some\"")]
     [InlineData("main.erl", "logic-erlang-branch-never-reached", "-module(main).\n-export([size/1]).\nsize(N) ->\n    if\n        N > 1 -> some;\n        N > 5 -> many;\n        true -> none\n    end.\n", 6,
@@ -141,6 +146,110 @@ public class NeverRunningCodeTests : IDisposable
     [InlineData("main.cpp", "logic-cpp-handler-never-reached", "int main() {\n    try {\n        f();\n    } catch (const std::invalid_argument& e) {\n        g();\n    } catch (const std::exception& e) {\n        h();\n    } catch (...) {\n        k();\n    }\n}\n")]
     [InlineData("main.rb", "logic-ruby-defined-twice", "class Square\n  def area\n    1\n  end\nend\n\nclass Circle\n  def area\n    2\n  end\nend\n")]
     public void CodeThatCanRunIsLeftAlone(string fileName, string check, string code) => Assert.Empty(Scan(fileName, code, check));
+
+    /// <summary>
+    /// The checks on a thread of their own, so one that never finishes fails the test at the time limit instead of holding up
+    /// the run. A thread, not a task: a task may wait for the thread pool, which a run of many tests can keep busy.
+    /// </summary>
+    private IReadOnlyList<LogicFinding> ScanWithin(TimeSpan limit, string fileName, string code, string check)
+    {
+        IReadOnlyList<LogicFinding>? found = null;
+        Exception? failed = null;
+        var scanning = new Thread(() =>
+        {
+            try { found = Scan(fileName, code, check); }
+            catch (Exception ex) { failed = ex; }
+        }) { IsBackground = true };
+
+        scanning.Start();
+        Assert.True(scanning.Join(limit), $"The checks were still reading {fileName} after {limit.TotalSeconds} s");
+        if (failed is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failed).Throw();
+        return found!;
+    }
+
+    /// <summary>prog_emit from TruthTableSolver's ttsolve.c, as it is written there.</summary>
+    private const string ProgEmit = """
+        static int prog_emit(Prog *p, int op, int a, int b, int c) {
+            if (op >= I_AND0 && op <= I_AND3 && a > b) {
+                int f = op - I_AND0;
+                op = I_AND0 + (((f & 1) << 1) | ((f >> 1) & 1));
+                int t = a; a = b; b = t;
+            } else if (op == I_XOR && a > b) { int t = a; a = b; b = t; }
+            if (p->htsize == 0 || p->ncode * 2 >= p->htsize) {
+                int ns = p->htsize ? p->htsize * 2 : 256;
+                free(p->ht);
+                p->ht = xmalloc((size_t)ns * sizeof(int));
+                for (int i = 0; i < ns; i++) p->ht[i] = -1;
+                p->htsize = ns;
+                for (int i = 0; i < p->ncode; i++) {
+                    unsigned h = ins_hash(p->code[i].op, p->code[i].a, p->code[i].b, p->code[i].c) & (unsigned)(ns - 1);
+                    while (p->ht[h] >= 0) h = (h + 1) & (unsigned)(ns - 1);
+                    p->ht[h] = i;
+                }
+            }
+            unsigned h = ins_hash(op, a, b, c) & (unsigned)(p->htsize - 1);
+            while (p->ht[h] >= 0) {
+                const Ins *x = &p->code[p->ht[h]];
+                if (x->op == op && x->a == a && x->b == b && x->c == c) return x->d;
+                h = (h + 1) & (unsigned)(p->htsize - 1);
+            }
+            if (p->ncode == p->cap) { p->cap = p->cap ? p->cap * 2 : 128; p->code = xrealloc(p->code, (size_t)p->cap * sizeof(Ins)); }
+            Ins x = {op, p->nregs++, a, b, c};
+            p->code[p->ncode] = x;
+            p->ht[h] = p->ncode++;
+            return x.d;
+        }
+        """;
+
+    /// <summary>
+    /// Chains with a branch whose block opens and closes on its own } else if line, by name: the kind of file, the check, the
+    /// code, the line of the branch found never to run, or 0 for none, and the lines its change writes, joined by |, or null
+    /// for none. Read as the } that closes that branch, the } the line starts with gave the same header again and again, and
+    /// the check never finished. Kept out of InlineData: the robustness tests run every check on each InlineData row's code
+    /// while xunit is finding the tests, where a check that never finishes holds up the whole run instead of failing one test
+    /// at its time limit.
+    /// </summary>
+    private static readonly Dictionary<string, (string File, string Check, string Code, int Line, string? Change)> ClosedOnTheirOwnLine = new()
+    {
+        // Neither condition is one comparison of a name with a number, so nothing is found.
+        ["ttsolve.c prog_emit"] = ("ttsolve.c", "logic-branch-never-reached", ProgEmit, 0, null),
+        // Found, and put in order: the one-line block moves whole, its } with it, and the } else if ( stays where it was.
+        ["c"] = ("main.c", "logic-branch-never-reached", "int f(int n) {\n    int r = 0;\n    if (n > 10) {\n        r = 1;\n    } else if (n > 100) { r = 2; }\n    return r;\n}\n", 5,
+            "    if (n > 100) { r = 2; } else if (n > 10) {|        r = 1;|    }"),
+        // The chain goes on past it, to the next line.
+        ["java, a branch after it"] = ("Main.java", "logic-branch-never-reached",
+            "class Main {\n    int f(int n) {\n        int r = 0;\n        if (n > 100) {\n            r = 1;\n        } else if (n > 10) { r = 2; }\n        else if (n > 50) { r = 3; }\n        else { r = 4; }\n        return r;\n    }\n}\n", 7,
+            "        if (n > 100) {|            r = 1;|        } else if (n > 50) { r = 3; }|        else if (n > 10) { r = 2; }"),
+        // Go's and Rust's, with another else if after it on that line: the chain ends there, the branches before it read, and
+        // that header's condition, which runs on into its block, is not read - so the chain is not put in order.
+        ["go"] = ("main.go", "logic-go-branch-never-reached",
+            "package main\n\nfunc size(n int) int {\n\tif n > 1 {\n\t\treturn 1\n\t} else if n > 5 {\n\t\treturn 5\n\t} else if n > 7 { return 7 } else if n > 3 {\n\t\treturn 3\n\t}\n\treturn 0\n}\n", 6, null),
+        ["rust"] = ("main.rs", "logic-rust-branch-never-reached",
+            "fn size(n: i32) -> i32 {\n    if n > 1 {\n        1\n    } else if n > 5 {\n        5\n    } else if n > 7 { 7 } else if n > 3 {\n        3\n    } else {\n        0\n    }\n}\n", 4, null),
+    };
+
+    [Theory]
+    [InlineData("ttsolve.c prog_emit")]
+    [InlineData("c")]
+    [InlineData("java, a branch after it")]
+    [InlineData("go")]
+    [InlineData("rust")]
+    public void AChainWithABranchClosedOnItsOwnLineIsReadInTime(string name)
+    {
+        var (fileName, check, code, line, change) = ClosedOnTheirOwnLine[name];
+
+        var found = ScanWithin(TimeSpan.FromSeconds(10), fileName, code, check);
+
+        if (line == 0)
+        {
+            Assert.Empty(found);
+            return;
+        }
+        var finding = Assert.Single(found);
+        Assert.Equal(line, finding.Line);
+        if (change is null) Assert.Null(finding.Fix);
+        else Assert.Equal(change.Split('|'), finding.Fix!.NewLines);
+    }
 
     [Theory]
     [InlineData("score >= 70", "score", 70, true, double.PositiveInfinity, false)]

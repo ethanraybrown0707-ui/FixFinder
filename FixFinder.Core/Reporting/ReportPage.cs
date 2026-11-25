@@ -35,10 +35,19 @@ public sealed record ReportPage
     /// <summary>Inputs that take the program each of its ways, and what it printed with each.</summary>
     public IReadOnlyList<Analysis.Dynamic.InputTried> Tried { get; init; } = [];
 
+    /// <summary>The algorithms the program's functions have the shape of, with what makes them look so.</summary>
+    public IReadOnlyList<Analysis.Recognition.AlgorithmSeen> Recognised { get; init; } = [];
+
+    /// <summary>How the program's own files use each other, a line for each that uses others.</summary>
+    public IReadOnlyList<string> FileMap { get; init; } = [];
+
     public required IReadOnlyList<Finding> Findings { get; init; }
 
     /// <summary>This check beside the last check of the same program, when there was one.</summary>
     public CheckComparison? SinceLastCheck { get; init; }
+
+    /// <summary>What the check said of the kinds of mistake that turned up in the person's other programs lately.</summary>
+    public IReadOnlyList<string> Recurring { get; init; } = [];
 
     /// <summary>What the program printed, line by line, as the window showed it.</summary>
     public IReadOnlyList<string> Output { get; init; } = [];
@@ -74,6 +83,13 @@ public sealed record ReportPage
 
         if (SinceLastCheck is { } comparison) AppendComparison(page, comparison);
 
+        if (Recurring.Count > 0)
+        {
+            page.Append("<section class=\"recurring\">\n<h2>What keeps turning up</h2>\n");
+            foreach (var said in Recurring) page.Append("<p>").Append(Text(said)).Append("</p>\n");
+            page.Append("</section>\n");
+        }
+
         if (Notes.Count > 0)
         {
             page.Append("<section class=\"notes\">\n<h2>Notes</h2>\n<ul>\n");
@@ -92,6 +108,31 @@ public sealed record ReportPage
                 page.Append("</li>\n");
             }
 
+            page.Append("</ul>\n</section>\n");
+        }
+
+        if (Recognised.Count > 0)
+        {
+            page.Append("<section class=\"recognised\">\n<h2>What the code looks like</h2>\n")
+                .Append("<p class=\"intro\">The algorithms the code has the shape of, recognised from the code itself - what each needs, and what it costs.</p>\n<ul>\n");
+            foreach (var seen in Recognised)
+            {
+                var who = seen.Function == Analysis.Recognition.AlgorithmRecognition.TopLevelCode ? "The top-level code" : $"`{seen.Function}`";
+                page.Append("<li><strong>").Append(Prose($"{who}, line {seen.Line}: {seen.Algorithm}")).Append("</strong>")
+                    .Append("<p>").Append(Prose(char.ToUpperInvariant(seen.HowItWorks[0]) + seen.HowItWorks[1..] + ".")).Append("</p>")
+                    .Append("<p>").Append(Prose(seen.WhatToKnow)).Append("</p>");
+                if (seen.Tried is { } tried) page.Append("<p>").Append(Prose(tried)).Append("</p>");
+                page.Append("</li>\n");
+            }
+
+            page.Append("</ul>\n</section>\n");
+        }
+
+        if (FileMap.Count > 0)
+        {
+            page.Append("<section class=\"files\">\n<h2>How the files use each other</h2>\n")
+                .Append("<p class=\"intro\">Each of the program's own files that uses others of them, named from the folder of the file checked.</p>\n<ul>\n");
+            foreach (var uses in FileMap) page.Append("<li>").Append(Prose(uses)).Append("</li>\n");
             page.Append("</ul>\n</section>\n");
         }
 
@@ -127,6 +168,7 @@ public sealed record ReportPage
     private void AppendComparison(StringBuilder page, CheckComparison comparison)
     {
         page.Append("<section class=\"since\">\n<h2>Since the last check</h2>\n<p>").Append(Text(comparison.Summary(CheckedAt))).Append("</p>\n");
+        if (comparison.Trend is { } trend) page.Append("<p class=\"trend\">").Append(Text(trend)).Append("</p>\n");
 
         if (comparison.Fixed.Count > 0)
         {
@@ -150,32 +192,104 @@ public sealed record ReportPage
             .Append("<span class=\"tag\">").Append(Text(FindingText.Kind(finding))).Append("</span>");
 
         if (SinceLastCheck?.StatusOf(finding) is { } status)
+        {
             page.Append(" <span class=\"tag ").Append(status == Engine.SinceLastCheck.New ? "new\">New since the last check" : "still\">Still there").Append("</span>");
+            if (SinceLastCheck.StreakOf(finding) is { } streak) page.Append(" <span class=\"streak\">").Append(Text(streak.Said(CheckedAt))).Append("</span>");
+        }
 
         // In the order the window's card has them, so the page reads as the window does.
         page.Append(" <span class=\"where\">").Append(Text(FindingText.Location(finding))).Append("</span></p>\n")
             .Append("<h3>").Append(Prose(finding.Title)).Append("</h3>\n");
 
+        // 1 Summary: where it went wrong and where it showed, under the title.
+        if (FindingLayout.Summary(finding) is { } summary) page.Append("<p class=\"summary\">").Append(Prose(summary)).Append("</p>\n");
+
         foreach (var said in new[] { FindingText.FoundBy(finding), FindingText.Witness(finding), FindingText.Confirmation(finding) })
             if (said is not null) page.Append("<p class=\"found\">").Append(Prose(said)).Append("</p>\n");
 
-        Section(page, "What is wrong", finding.Explanation);
+        // 2 Cause: this program first, never the language first.
+        Section(page, "Cause", FindingLayout.Cause(finding));
+
+        // How it got there: the way the value went, call by call, as the run recorded it - each call further in.
+        if (FindingLayout.Path(finding) is { Count: > 0 } path)
+        {
+            page.Append("<h4>How it got there</h4>\n<ol class=\"path\">\n");
+            foreach (var step in path)
+                page.Append("<li style=\"margin-left: ").Append(step.Depth * 22).Append("px\">").Append(Prose(FindingLayout.PathLine(step))).Append("</li>\n");
+            page.Append("</ol>\n");
+        }
+
+        // Why this line ran: the decisions around it, and what their conditions read as the call that stopped reached them.
+        if (FindingLayout.WhyThisLineRan(finding) is { Count: > 0 } branches)
+        {
+            page.Append("<h4>Why this line ran</h4>\n<ul class=\"branches\">\n");
+            foreach (var branch in branches) page.Append("<li>").Append(Prose(branch)).Append("</li>\n");
+            page.Append("</ul>\n");
+        }
 
         if (links.LeadsTo(finding) is { Count: > 0 } consequences) page.Append("<p class=\"relation\">").Append(Prose(FindingText.Explains(consequences))).Append("</p>\n");
-        if (links.FollowsFrom(finding) is { } cause) page.Append("<p class=\"relation\">").Append(Prose(FindingText.Follows(cause))).Append("</p>\n");
+        if (links.FollowsFrom(finding) is { } cause) page.Append("<p class=\"relation\">").Append(Prose(FindingText.Follows(cause, finding))).Append("</p>\n");
 
-        Section(page, "Why FixFinder is this sure", Evidence.For(finding));
-        Section(page, "Why it matters", finding.WhyItMatters);
+        // 3 Most likely fix, and how sure FixFinder is of it - which is not how sure it is of the finding.
+        Section(page, "Most likely fix", FindingLayout.MostLikelyFix(finding));
+        if (FindingLayout.FixConfidence(finding) is { } certainty)
+            page.Append("<p class=\"certainty\"><span class=\"tag\">").Append(Text($"Fix confidence: {certainty.Level}")).Append("</span> ")
+                .Append(Prose(certainty.Because)).Append("</p>\n");
+
+        // 4 Exact code to change: the lines as they are, and as the fix leaves them.
+        if (finding.Change is { Lines.Count: > 0 } change)
+        {
+            page.Append("<h4>").Append(Text($"Exact code to change  ·  {change.Summary}")).Append("</h4>\n");
+            if (finding.Fix is { } fix && fix.Title.Length > 0) page.Append("<p>").Append(Prose(fix.Title)).Append("</p>\n");
+
+            // Side by side: the code as it is now beside the code as the fix leaves it, each line taken out beside the one put in its place.
+            page.Append("<table class=\"change\">\n<tr><th>Current</th><th>Suggested</th></tr>\n");
+            foreach (var row in change.SideBySide) page.Append("<tr>").Append(ChangeCell(row.Now)).Append(ChangeCell(row.AfterTheFix)).Append("</tr>\n");
+            page.Append("</table>\n");
+        }
+
+        if (finding.CorrectedExample.Trim().Length > 0)
+        {
+            page.Append("<h4>").Append(finding.ExampleIsFromYourCode ? "Corrected code, from your file" : "An example of corrected code").Append("</h4>\n")
+                .Append("<pre>").Append(Text(finding.CorrectedExample)).Append("</pre>\n");
+        }
+
+        if (finding.FixChanges is { Count: > 0 } fixChanges)
+        {
+            page.Append("<h4>What the fix changes</h4>\n<ul>\n");
+            foreach (var fixChange in fixChanges) page.Append("<li>").Append(Prose(fixChange)).Append("</li>\n");
+            page.Append("</ul>\n");
+        }
+
+        if (FindingText.Origin(finding) is { } origin)
+        {
+            page.Append("<h4>Where this fix came from</h4>\n<p>")
+                .Append(finding.CameFrom is { HasLink: true, Url: { } originUrl } ? Link(origin, originUrl) : Prose(origin)).Append("</p>\n");
+        }
+
+        // 5 Why FixFinder thinks this: what was seen, and how trying the fix went.
+        page.Append("<h4>Why FixFinder thinks this</h4>\n<ul class=\"steps\">\n");
+        foreach (var reason in FindingLayout.WhyItThinksThis(finding))
+            page.Append("<li class=\"").Append(reason.Mark.ToString().ToLowerInvariant()).Append("\">")
+                .Append(Text(FindingText.Mark(reason.Mark))).Append(' ').Append(Prose(reason.Text)).Append("</li>\n");
+        page.Append("</ul>\n");
+
+        // The variable timeline: one variable to a fold, the one the program stopped on open, each value with the line that gave it.
+        if (finding.Timeline.Count > 0)
+        {
+            page.Append("<h4>Variable timeline</h4>\n<p class=\"hint\">").Append(Text(FindingText.TimelineIntroduction)).Append("</p>\n");
+            foreach (var variable in finding.Timeline)
+            {
+                page.Append(variable.Name == FindingText.TimelineShownFirst(finding) ? "<details class=\"timeline\" open>" : "<details class=\"timeline\">")
+                    .Append("<summary><code>").Append(Text(variable.Name)).Append("</code> - ").Append(Text(variable.Summary)).Append("</summary>\n")
+                    .Append("<table>\n<thead><tr><th>Given by</th><th>Value</th></tr></thead>\n<tbody>\n");
+                foreach (var given in variable.Changes)
+                    page.Append("<tr><td>").Append(Text(given.GivenBy)).Append("</td><td><code>").Append(Text(given.Value)).Append("</code></td></tr>\n");
+                page.Append("</tbody>\n</table>\n</details>\n");
+            }
+        }
 
         if (FindingText.Slice(finding) is { Length: > 0 } slice) page.Append("<h4>The lines that decide it</h4>\n<pre>").Append(Text(slice)).Append("</pre>\n");
-
-        Section(page, "How to fix it", finding.SuggestedFix);
-
-        var further = Teaching.FurtherExplanation.For(finding);
-
-        page.Append("<h4>Step by step</h4>\n<ol class=\"walkthrough\">\n");
-        foreach (var step in further.Steps) page.Append("<li>").Append(Prose(step)).Append("</li>\n");
-        page.Append("</ol>\n");
 
         if (finding.State is { Rows.Count: > 0 } state)
         {
@@ -194,57 +308,18 @@ public sealed record ReportPage
             if (state.WasCut) page.Append("<p class=\"hint\">").Append(Text(state.CutNote)).Append("</p>\n");
         }
 
-        if (FindingText.FurtherReading(finding) is { } reading && finding.FurtherReading?.Url is { } readingUrl)
-            page.Append("<h4>Read more about this</h4>\n<p>").Append(Link(reading, readingUrl)).Append("</p>\n");
-        if (FindingText.Weakness(finding) is { } weakness) page.Append("<p>").Append(Link(weakness, finding.Weakness!.Url)).Append("</p>\n");
-
-        if (FindingText.Origin(finding) is { } origin)
-        {
-            page.Append("<h4>Where this fix came from</h4>\n<p>")
-                .Append(finding.CameFrom is { HasLink: true, Url: { } originUrl } ? Link(origin, originUrl) : Prose(origin)).Append("</p>\n");
-        }
-
-        if (finding.Verified.WasTested)
-        {
-            page.Append("<h4>Verification</h4>\n<p class=\"verified\">").Append(Prose(finding.Verified.Summary)).Append("</p>\n<ul class=\"steps\">\n");
-            foreach (var step in finding.Verified.Steps.OrderBy(step => step.Stage))
-                page.Append("<li class=\"").Append(step.Result.ToString().ToLowerInvariant()).Append("\">")
-                    .Append(Text(FindingText.Mark(step.Result))).Append(' ').Append(Prose(step.Detail)).Append("</li>\n");
-            page.Append("</ul>\n");
-        }
-
-        if (finding.Change is { Lines.Count: > 0 } change)
-        {
-            page.Append("<h4>").Append(Text($"What changes  ·  {change.Summary}")).Append("</h4>\n<pre class=\"change\">");
-            foreach (var line in change.Lines)
-            {
-                var (kind, mark) = line.Kind switch
-                {
-                    ChangeKind.Removed => ("removed", "-"),
-                    ChangeKind.Added => ("added", "+"),
-                    _ => ("context", " "),
-                };
-
-                page.Append("<span class=\"").Append(kind).Append("\">").Append(Text($"{line.Number,5} {mark} {line.Text}")).Append("</span>\n");
-            }
-
-            page.Append("</pre>\n");
-        }
-
-        if (finding.CorrectedExample.Trim().Length > 0)
-        {
-            page.Append("<h4>").Append(finding.ExampleIsFromYourCode ? "Corrected code, from your file" : "An example of corrected code").Append("</h4>\n")
-                .Append("<pre>").Append(Text(finding.CorrectedExample)).Append("</pre>\n");
-        }
-
-        if (finding.FixChanges is { Count: > 0 } fixChanges)
-        {
-            page.Append("<h4>What the fix changes</h4>\n<ul>\n");
-            foreach (var fixChange in fixChanges) page.Append("<li>").Append(Prose(fixChange)).Append("</li>\n");
-            page.Append("</ul>\n");
-        }
-
         if (finding.FixCheckedBy is { Length: > 0 } checkedBy) page.Append("<p class=\"checked\">").Append(Prose(checkedBy)).Append("</p>\n");
+
+        // 6 Learn more: what this kind of mistake is, in general, once this program's own has been said.
+        var further = Teaching.FurtherExplanation.For(finding);
+        page.Append("<h4 class=\"part\">Learn more</h4>\n");
+
+        Section(page, "What this kind of mistake is", FindingLayout.LearnMore(finding));
+        Section(page, "Why it matters", finding.WhyItMatters);
+
+        page.Append("<h4>Step by step</h4>\n<ol class=\"walkthrough\">\n");
+        foreach (var step in further.Steps) page.Append("<li>").Append(Prose(step)).Append("</li>\n");
+        page.Append("</ol>\n");
 
         if (further.Message is { } message)
         {
@@ -262,6 +337,11 @@ public sealed record ReportPage
 
         var concept = Teaching.ConceptMap.Of(finding);
         page.Append("<h4>").Append(Text($"The idea behind it: {concept.Title}")).Append("</h4>\n<p>").Append(Prose(concept.Idea)).Append("</p>\n");
+
+        if (FindingText.FurtherReading(finding) is { } reading && finding.FurtherReading?.Url is { } readingUrl)
+            page.Append("<h4>Read more about this</h4>\n<p>").Append(Link(reading, readingUrl)).Append("</p>\n");
+        if (FindingText.Weakness(finding) is { } weakness) page.Append("<p>").Append(Link(weakness, finding.Weakness!.Url)).Append("</p>\n");
+
         if (Teaching.ProblemStore.CodeFor(finding) is { } code)
             page.Append("<p class=\"code\">Problem code <code>").Append(Text(code.Text)).Append("</code>, for FixFinder Learn</p>\n");
         if (further.Reproduce is { } reproduce) page.Append("<p><strong>To see it happen:</strong> ").Append(Prose(reproduce)).Append("</p>\n");
@@ -296,6 +376,24 @@ public sealed record ReportPage
     private static string Text(string text) => new StringBuilder(text)
         .Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;").Replace("'", "&#39;")
         .ToString();
+
+    /// <summary>
+    /// One side of a row of a change: the line's number and the line, marked - or + as well as coloured, so taken out and put in
+    /// read apart without the colour - or an empty cell where the other side has a line with no partner.
+    /// </summary>
+    private static string ChangeCell(ChangeLine? line)
+    {
+        if (line is null) return "<td class=\"empty\"></td>";
+
+        var (kind, mark) = line.Kind switch
+        {
+            ChangeKind.Removed => ("removed", "-"),
+            ChangeKind.Added => ("added", "+"),
+            _ => ("context", " "),
+        };
+
+        return $"<td class=\"{kind}\"><span class=\"number\">{line.Number,4} {mark}</span>{Text(line.Text)}</td>";
+    }
 
     /// <summary>
     /// Text written as the findings write it, escaped, with what is between backticks shown as code - when the backticks
@@ -366,14 +464,29 @@ public sealed record ReportPage
         .tag.new { color: var(--warning); background: var(--warning-soft); }
         .tag.still { color: var(--secondary); }
         .tag.fixed { color: var(--success); background: var(--success-soft); }
+        .streak { color: var(--secondary); font-size: .9em; }
+        p.trend { color: var(--secondary); }
         .relation, .found { font-style: italic; color: var(--secondary); }
+        .summary { font-weight: 600; }
+        details.timeline { margin: 4px 0; }
+        ol.path { list-style: none; padding-left: 0; margin: 4px 0 8px; }
+        ol.path li { margin: 2px 0; }
+        ul.branches { padding-left: 18px; margin: 4px 0 8px; }
+        ul.branches li { margin: 2px 0; }
+        ol.path li::before { content: "\2192  "; color: var(--secondary); }
+        details.timeline summary { cursor: pointer; }
+        .label { font-size: 12.5px; color: var(--secondary); margin: 8px 0 2px; }
+        h4.part { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 20px; color: var(--accent); }
         .checked { background: var(--success-soft); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; margin-top: 12px; }
         code, pre { font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; }
         code { background: var(--subtle); border-radius: 4px; padding: 0 4px; }
         pre { background: var(--subtle); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
-        pre.change .removed { color: var(--error); }
-        pre.change .added { color: var(--success); }
-        pre.change .context { color: var(--secondary); }
+        table.change { width: 100%; table-layout: fixed; font-family: "Cascadia Mono", Consolas, monospace; }
+        table.change td { white-space: pre-wrap; word-break: break-word; vertical-align: top; }
+        table.change td.removed { background: var(--error-soft); }
+        table.change td.added { background: var(--success-soft); }
+        table.change td.context { color: var(--secondary); }
+        table.change .number { display: inline-block; min-width: 4.5em; color: var(--secondary); user-select: none; }
         table { border-collapse: collapse; font-size: 13px; margin: 4px 0; }
         th, td { border: 1px solid var(--border); padding: 3px 10px; text-align: left; }
         tr.failed td { background: var(--error-soft); }

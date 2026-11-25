@@ -25,9 +25,9 @@ public static class StepByStep
             steps.Add("This one may follow from another problem in the report: put that one right first - this one may go with it.");
 
         steps.Add(finding.Fix is not null || finding.ExampleIsFromYourCode
-            ? "Work out the change from How to fix it, and make it yourself. When you have tried, Show the corrected code compares your " +
+            ? "Work out the change from the most likely fix, and make it yourself. When you have tried, Show the corrected code compares your " +
               "change with FixFinder's."
-            : "Make the change How to fix it describes.");
+            : "Make the change the most likely fix describes.");
 
         steps.Add(HowToSeeItWorked(finding, language));
 
@@ -64,10 +64,14 @@ public static class StepByStep
     {
         ("timed-out", _) =>
             "The program was still running when its time ran out, so FixFinder stopped it: nothing went wrong that it printed, but it did not finish.",
+        ("tests-miss-change", _) =>
+            "The program and its tests pass as they are; this is about what the tests check - with this line changed, every test still passed.",
         ("wrong-output", _) =>
             "The program ran to the end, but what it printed is not what you said it should print.",
         ("stopped-before-expected-output", _) =>
             "The program stopped before it had printed everything you said it should print.",
+        ("algorithm-sort-wrong" or "algorithm-search-wrong" or "algorithm-extreme-wrong" or "algorithm-prime-wrong" or "algorithm-leap-year-wrong" or "algorithm-factorial-wrong" or "algorithm-reversal-wrong" or "algorithm-gcd-wrong" or "algorithm-fibonacci-wrong" or "algorithm-merge-wrong" or "algorithm-in-order-wrong" or "algorithm-palindrome-wrong" or "algorithm-round-trip-wrong", _) =>
+            "The program can run without an error, but when FixFinder called this function with a list, a number or a word of its own, the answer came back wrong - what it was called with is in what is wrong.",
         (_, FindingKind.Syntax) when finding.Severity == Severity.Error =>
             $"{Capitalised(language)} could not make sense of this, so the program did not run - none of it, or, for a file another one " +
             "uses, none of this file.",
@@ -93,8 +97,12 @@ public static class StepByStep
     {
         ("timed-out", _) =>
             "Check it again: once its loops can end - or the input it waits for is given - the program finishes inside its time.",
+        ("tests-miss-change", _) =>
+            "Check it again: this suggestion goes when a test fails with the line changed - when some test checks what the line does.",
         ("wrong-output" or "stopped-before-expected-output", _) =>
             "Check it again, with the same expected output: this finding goes when the program prints exactly that.",
+        ("algorithm-sort-wrong" or "algorithm-search-wrong" or "algorithm-extreme-wrong" or "algorithm-prime-wrong" or "algorithm-leap-year-wrong" or "algorithm-factorial-wrong" or "algorithm-reversal-wrong" or "algorithm-gcd-wrong" or "algorithm-fibonacci-wrong" or "algorithm-merge-wrong" or "algorithm-in-order-wrong" or "algorithm-palindrome-wrong" or "algorithm-round-trip-wrong", _) =>
+            "Check it again: this finding goes when the function gives the right answer for everything FixFinder calls it with.",
         (_, FindingKind.Syntax) when finding.Severity == Severity.Error =>
             $"Check it again. Once this is right, {language} reads on past it, and the next mistake, if there is one, is the one reported.",
         (_, FindingKind.Runtime) when finding.Severity == Severity.Error =>

@@ -182,16 +182,30 @@
                             <ComboBox x:Name="LanguageBox" AutomationProperties.AutomationId="LanguageBox"
                                       AutomationProperties.Name="Language of the lessons" Margin="0,8,0,8"
                                       SelectionChanged="LanguageBox_SelectionChanged"/>
+                            <TextBlock x:Name="LatelyText" AutomationProperties.AutomationId="LatelyText" Visibility="Collapsed"
+                                       Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,0,0,6"
+                                       Text="First, the kinds of mistake FixFinder found in your programs in the last 30 days, with how often each turned up in the 30 days before."/>
                             <ItemsControl x:Name="LessonsList" AutomationProperties.AutomationId="LessonsList" Margin="-8,0" Focusable="False">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type local:LessonChoice}">
                                         <Button Style="{StaticResource ListChoice}" Tag="{Binding}" Click="OpenLesson_Click"
                                                 AutomationProperties.Name="{Binding Title}">
-                                            <DockPanel>
-                                                <TextBlock DockPanel.Dock="Right" Text="{Binding Progress}" Style="{StaticResource Hint}"
-                                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                            <StackPanel>
                                                 <TextBlock Text="{Binding Title}" TextWrapping="Wrap"/>
-                                            </DockPanel>
+                                                <!-- How often its kind turned up, and how far its questions are done, under the title: beside it,
+                                                     the counts of lately and the 30 days before left the title a narrow column. -->
+                                                <TextBlock Text="{Binding Beside}" TextWrapping="Wrap" Margin="0,2,0,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Hint}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Beside}" Value="">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
                                         </Button>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

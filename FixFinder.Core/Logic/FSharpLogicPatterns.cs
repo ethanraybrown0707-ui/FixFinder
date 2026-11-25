@@ -74,33 +74,48 @@ public static partial class FSharpLogicPatterns
     [GeneratedRegex(@"^(?<call>(?<module>List|Array|Seq|Set|Map|String)\.(?<function>sort|sortDescending|rev|distinct|filter|map|append|add|remove)\b.*?\s(?<name>[a-z_][\w']*))\s*$")]
     private static partial Regex CopyOnItsOwn();
 
-    /// <summary>What the new list is called, by what made it: sortedMarks, reversedMarks.</summary>
+    /// <summary><c>name.ToUpper()</c> at the start of a line of the script's top level: a method that gives back new text.</summary>
+    [GeneratedRegex(@"^(?<call>(?<name>[a-z_][\w']*)\.(?<function>ToUpper|ToLower|ToUpperInvariant|ToLowerInvariant|Trim|TrimStart|TrimEnd|Replace|Substring|PadLeft|PadRight)\(.*\))\s*$")]
+    private static partial Regex TextCopyOnItsOwn();
+
+    /// <summary>What the new list or text is called, by what made it: sortedMarks, reversedMarks, upperName.</summary>
     private static readonly IReadOnlyDictionary<string, string> NewNameFor = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["sort"] = "sorted", ["sortDescending"] = "sorted", ["rev"] = "reversed", ["distinct"] = "distinct", ["filter"] = "filtered",
         ["map"] = "mapped", ["append"] = "joined", ["add"] = "updated", ["remove"] = "updated",
+        ["ToUpper"] = "upper", ["ToLower"] = "lower", ["ToUpperInvariant"] = "upper", ["ToLowerInvariant"] = "lower", ["Trim"] = "trimmed",
+        ["TrimStart"] = "trimmed", ["TrimEnd"] = "trimmed", ["Replace"] = "replaced", ["Substring"] = "part", ["PadLeft"] = "padded",
+        ["PadRight"] = "padded",
     };
 
     /// <summary>
     /// A function that gives back a new list - or set, map or text - on a line of the script's own: F#'s lists never change, so
-    /// List.sort marks makes a sorted copy, and on a line of its own F# throws the copy away without a word. A value given with let
-    /// cannot be given again at a script's top level, so the change keeps the copy under a name of its own, and the lines after
-    /// read that name - unless one of them gives the old name a meaning of its own, when the finding comes with no change.
+    /// List.sort marks makes a sorted copy, and on a line of its own F# throws the copy away without a word; text never changes
+    /// either, so name.ToUpper() makes upper-case text and leaves name as it was. A value given with let cannot be given again at
+    /// a script's top level, so the change keeps the copy under a name of its own, and the lines after read that name - unless
+    /// one of them gives the old name a meaning of its own, when the finding comes with no change.
     /// </summary>
     private static IEnumerable<LogicFinding> ResultDiscarded(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var index = 0; index < masked.Count; index++)
         {
-            if (CopyOnItsOwn().Match(masked[index]) is not { Success: true } copy) continue;
+            var listCopy = CopyOnItsOwn().Match(masked[index]);
+            var textCopy = listCopy.Success ? Match.Empty : TextCopyOnItsOwn().Match(masked[index]);
+            if (!listCopy.Success && !textCopy.Success) continue;
 
+            var copy = listCopy.Success ? listCopy : textCopy;
             var name = copy.Groups["name"].Value;
-            var function = $"{copy.Groups["module"].Value}.{copy.Groups["function"].Value}";
+            var function = listCopy.Success ? $"{copy.Groups["module"].Value}.{copy.Groups["function"].Value}" : $"{name}.{copy.Groups["function"].Value}";
+            var made = listCopy.Success ? "list" : "text";
             var reads = new Regex($@"(?<![\w.']){Regex.Escape(name)}(?![\w'])");
             var lastRead = Enumerable.Range(index + 1, masked.Count - index - 1).LastOrDefault(line => reads.IsMatch(masked[line]), -1);
             if (lastRead < 0) continue;
 
-            var message = $"F#'s lists never change: {function} gives back a new one and leaves {name} as it was - and on a line of the " +
-                          "script's own F# throws the new one away without a word";
+            var message = listCopy.Success
+                ? $"F#'s lists never change: {function} gives back a new one and leaves {name} as it was - and on a line of the " +
+                  "script's own F# throws the new one away without a word"
+                : $"Text never changes in F#: {function} gives back new text and leaves {name} as it was - and on a line of the " +
+                  "script's own F# throws the new text away";
 
             var newName = NewNameFor[copy.Groups["function"].Value] + char.ToUpperInvariant(name[0]) + name[1..];
             var givenAgain = new Regex($@"\b(?:let|fun|for)\b[^=]*(?<![\w.']){Regex.Escape(name)}(?![\w'])|\(\s*{Regex.Escape(name)}\s*:");
@@ -127,7 +142,7 @@ public static partial class FSharpLogicPatterns
             yield return new LogicFinding(id, index + 1, message, new LocalFix
             {
                 RuleId = id,
-                Title = $"Keep the new list: let {newName} = {function} ...",
+                Title = $"Keep the new {made}: let {newName} = {function} ...",
                 Explanation = $"let keeps what {function} gives back under a name of its own - F# will not give {name} a second value at the " +
                               $"top of a script - and the lines after it read {newName}.",
                 File = source.Path,

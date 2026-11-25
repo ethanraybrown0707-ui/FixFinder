@@ -30,7 +30,48 @@ public static partial class GoLogicPatterns
         Pattern("logic-go-parse-error-ignored", ParseErrorIgnored, confidence: Confidence.Possible),
         Pattern("logic-go-result-discarded", ResultDiscarded),
         Pattern("logic-go-replace-none", ReplaceNone, Severity.Error, Confidence.Certain),
+        Pattern("logic-go-float-equality", FloatEquality, Severity.Suggestion, Confidence.Possible),
     ];
+
+    /// <summary>A name compared exactly with a decimal: <c>total == 0.3</c>, <c>total != 0.3</c>.</summary>
+    [GeneratedRegex(@"(?<![\w.])(?<name>[A-Za-z_]\w*)\s*(?<op>==|!=)\s*(?<value>\d*\.\d*[1-9]\d*)(?![\w.])")]
+    private static partial Regex DecimalCompared();
+
+    /// <summary>A float given its first value with := and a decimal, or declared float32 or float64.</summary>
+    [GeneratedRegex(@"(?<![\w.])(?<name>[A-Za-z_]\w*)\s*:=\s*-?\d*\.\d+|(?<![\w.])(?<name>[A-Za-z_]\w*)\s+float(?:32|64)\b")]
+    private static partial Regex FloatDeclared();
+
+    /// <summary>
+    /// A float compared exactly with a decimal: 0.1 + 0.2 is 0.30000000000000004, so total == 0.3 is false, and go vet says
+    /// nothing. The change compares within a tiny tolerance - with math.Abs when the program already imports math, and from
+    /// both sides when it does not, as a change to one line cannot add the import.
+    /// </summary>
+    private static IEnumerable<LogicFinding> FloatEquality(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        var floats = masked.SelectMany(text => FloatDeclared().Matches(text)).Select(declared => declared.Groups["name"].Value).ToHashSet(StringComparer.Ordinal);
+        if (floats.Count == 0) yield break;
+
+        var importsMath = source.Lines.Any(text => Regex.IsMatch(text, @"^\s*(?:import\s+)?""math""\s*$"));
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (DecimalCompared().Match(masked[index]) is not { Success: true } compared || !floats.Contains(compared.Groups["name"].Value)) continue;
+
+            var (name, value, equal) = (compared.Groups["name"].Value, compared.Groups["value"].Value, compared.Groups["op"].Value == "==");
+            var line = source.Lines[index];
+            var close = importsMath
+                ? equal ? $"math.Abs({name}-{value}) < 1e-9" : $"math.Abs({name}-{value}) >= 1e-9"
+                : equal ? $"{name}-{value} < 1e-9 && {value}-{name} < 1e-9" : $"({name}-{value} >= 1e-9 || {value}-{name} >= 1e-9)";
+
+            yield return new LogicFinding(id, index + 1,
+                $"`{name}` is a decimal number compared exactly with {value}, and decimal arithmetic is rarely exact - 0.1 + 0.2 is 0.30000000000000004",
+                LocalFix.ReplaceLine(id, $"Compare within a small tolerance: {close}",
+                    "Most decimal fractions cannot be stored exactly in binary, so sums and products land a tiny amount away from the value " +
+                    "you expect. Checking that the difference is tiny, rather than zero, compares them the way you meant." +
+                    (importsMath ? "" : " Without the math package imported, the difference is checked from both sides rather than with math.Abs."),
+                    source.Path, index + 1, line[..compared.Index] + close + line[(compared.Index + compared.Length)..]));
+        }
+    }
 
     /// <summary><c>for i := 0; i &lt;= len(xs); i++</c>.</summary>
     [GeneratedRegex(@"\bfor\s+(?<variable>[A-Za-z_]\w*)\s*:=\s*0\s*;\s*\k<variable>\s*(?<comparison><=)\s*len\(\s*(?<collection>[A-Za-z_][\w.]*)\s*\)\s*;")]

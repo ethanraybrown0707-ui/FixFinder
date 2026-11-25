@@ -38,6 +38,23 @@ public class PythonFrontendTests : IDisposable
         Assert.Equal("str", grade.ReturnType.ToString());
     }
 
+    /// <summary>
+    /// A string holding half a character - "\ud800", which Python allows and writes into JSON as it is - is read as a value
+    /// whose text is not known, and the rest of the file is read: .NET refused the text, and the whole reading stopped,
+    /// when Python's own library was read with a file of its tests that holds one.
+    /// </summary>
+    [Fact]
+    public async Task AStringHoldingHalfACharacterDoesNotStopTheFileBeingRead()
+    {
+        if (await Read("BROKEN = \"\\ud800\"\n\n\ndef share(total, people):\n    return total / people\n") is not { } program) return;
+
+        Assert.Empty(program.Problems);
+        Assert.Contains(program.Functions, function => function.Name == "share");
+        var moduleBody = program.Functions.Single(function => function.Name == IrFunction.ModuleBody);
+        Assert.Contains(IrWalk.Statements(moduleBody.Body).SelectMany(IrWalk.Expressions).SelectMany(IrWalk.Within),
+            expression => expression is Opaque { What: "text holding half a character" });
+    }
+
     [Fact]
     public async Task AndOrAndNotBecomeOneSimpleTestPerBranch()
     {

@@ -19,6 +19,12 @@ public sealed record LocalFix
 
     public string? ResolvesWarning { get; init; }
 
+    /// <summary>
+    /// Whether the change only stops the failure - a line made to skip a missing value - rather than putting right what made
+    /// it, so that however well a copy with it runs, it is never more than a possible fix.
+    /// </summary>
+    public bool OnlyStopsTheFailure { get; init; }
+
     public static LocalFix ReplaceLine(
         string ruleId, string title, string explanation, string file, int line, string newText) => new()
     {

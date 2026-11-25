@@ -1,0 +1,243 @@
+using FixFinder.Core.Checking;
+using FixFinder.Core.LocalFixes;
+using FixFinder.Core.Parsing;
+using FixFinder.Core.Reporting;
+
+namespace FixFinder.Tests;
+
+/// <summary>
+/// A finding in the order it is read - what happened, its cause in this program, the most likely fix and how sure FixFinder
+/// is of it, why it thinks so, and then what the mistake is in general: this program first, never the language first.
+/// </summary>
+public class FindingLayoutTests
+{
+    private const string Guide = "Square brackets pick one item out of a list, a string or a dictionary.";
+
+    private static Finding Stopped(string? found = null, string explanation = Guide) => new()
+    {
+        Kind = FindingKind.Runtime,
+        Severity = Severity.Error,
+        Confidence = Confidence.Certain,
+        File = @"C:\work\members.py",
+        Line = 10,
+        Title = "It crashed: TypeError: 'NoneType' object is not subscriptable",
+        Explanation = explanation,
+        Found = found,
+        WhyItMatters = "The line crashes every time it runs.",
+        SuggestedFix = "Index the list or string itself.",
+        CorrectedExample = "",
+        RuleId = "TypeError",
+        Error = new ParsedError
+        {
+            LanguageId = "python",
+            Confidence = 90,
+            FirstLineSequence = 0,
+            RawText = "",
+            ExceptionType = "TypeError",
+            Message = "'NoneType' object is not subscriptable",
+            Frames = [],
+        },
+    };
+
+    private static RootCause Traced => new()
+    {
+        Name = "member",
+        Value = "None",
+        CrashLine = 10,
+        IntroducedLine = 9,
+        IntroducedCode = "member = find_member(members, 2)",
+        Steps = ["The program stopped on line 10.", "`member` became None on line 9."],
+        Evidence = ["`member` held None when line 10 ran.", "Line 9 was the last line to change `member` before line 10."],
+        LinesInvolved = [9],
+        WhatToDo = "Decide what `find_member` should give back on line 5.",
+    };
+
+    private static LocalFix Fix(bool onlyStopsTheFailure = false) => new()
+    {
+        RuleId = "python-none-guard",
+        Title = "Run line 10 only when member is not None",
+        Explanation = "",
+        File = @"C:\work\members.py",
+        StartLine = 10,
+        RemoveCount = 1,
+        NewLines = ["if member is not None:", "    print(member[\"age\"])"],
+        OnlyStopsTheFailure = onlyStopsTheFailure,
+    };
+
+    [Fact]
+    public void TheCauseIsWhatHappenedInThisProgramNotWhatTheErrorMeans()
+    {
+        Assert.Equal("The program stopped on line 10 with TypeError: 'NoneType' object is not subscriptable.", FindingLayout.Cause(Stopped()));
+
+        // What it means in general is still there, after.
+        Assert.Equal(Guide, FindingLayout.LearnMore(Stopped()));
+    }
+
+    [Fact]
+    public void WhatWasFoundInThisCodeComesFirstAndIsNotSaidTwice()
+    {
+        const string found = "`count` can be 0 here.";
+        var finding = Stopped(found, $"{found} {Guide}");
+
+        Assert.Equal(found, FindingLayout.Cause(finding));
+        Assert.Equal(Guide, FindingLayout.LearnMore(finding));
+    }
+
+    [Fact]
+    public void AnExplanationThatIsAllAboutThisProgramIsNotRepeatedUnderLearnMore()
+    {
+        var finding = Stopped() with { Error = null, Explanation = "The program printed 7 where you said 8." };
+
+        Assert.Equal("The program printed 7 where you said 8.", FindingLayout.Cause(finding));
+        Assert.Equal("", FindingLayout.LearnMore(finding));
+    }
+
+    [Fact]
+    public void ACompilerErrorSaysTheCompilerRefusedTheLine()
+    {
+        var finding = Stopped() with
+        {
+            Kind = FindingKind.Syntax,
+            Line = 7,
+            Error = new ParsedError { LanguageId = "java", Confidence = 90, FirstLineSequence = 0, RawText = "", Message = "';' expected", Frames = [] },
+        };
+
+        Assert.Equal("The compiler refused the code on line 7: ';' expected.", FindingLayout.Cause(finding));
+    }
+
+    [Fact]
+    public void WhenTheOnlyChangeStopsTheFailureTheMostLikelyFixIsWhatTheTraceSays()
+    {
+        var traced = Stopped() with { RootCause = Traced, Fix = Fix(onlyStopsTheFailure: true), SuggestedFix = "Run line 10 only when member is not None." };
+
+        Assert.Equal(Traced.WhatToDo, FindingLayout.MostLikelyFix(traced));
+        Assert.Equal(Traced.WhatToDo, FindingLayout.MostLikelyFix(traced with { Fix = null }));
+
+        // A rule's own fix for the mistake itself says it best.
+        var mended = traced with { Fix = Fix(), SuggestedFix = "Return result from average." };
+        Assert.Equal("Return result from average.", FindingLayout.MostLikelyFix(mended));
+    }
+
+    [Fact]
+    public void TheSummaryIsWhereItStoppedAndWhereItWentWrong()
+    {
+        Assert.Equal("Crash on line 10. Root cause introduced on line 9.", FindingLayout.Summary(Stopped() with { RootCause = Traced }));
+        Assert.Null(FindingLayout.Summary(Stopped()));
+    }
+
+    [Fact]
+    public void FixConfidenceIsReadOffHowFarTheChangeWasTaken()
+    {
+        var ran = Verification.NotTested.With(VerificationStage.Ran, StageResult.Passed, "The copy ran.");
+
+        Assert.Null(FindingLayout.FixConfidence(Stopped()));
+        Assert.Equal(Confidence.Possible, FindingLayout.FixConfidence(Stopped() with { Fix = Fix() })!.Level);
+        Assert.Equal("the change was not tried", FindingLayout.FixConfidence(Stopped() with { Fix = Fix() })!.Because);
+
+        var likely = FindingLayout.FixConfidence(Stopped() with { Fix = Fix(), Verified = ran })!;
+        Assert.Equal(Confidence.Likely, likely.Level);
+        Assert.Equal("a copy with the change ran without the error", likely.Because);
+        Assert.Equal("Likely. A copy with the change ran without the error.", likely.Labelled);
+
+        var printed = ran.With(VerificationStage.MatchedExpectedOutput, StageResult.Passed, "It printed what you said it should.");
+        Assert.Equal(Confidence.Certain, FindingLayout.FixConfidence(Stopped() with { Fix = Fix(), Verified = printed })!.Level);
+
+        var built = Verification.NotTested.With(VerificationStage.Compiled, StageResult.Passed, "It built.");
+        Assert.Equal("a copy with the change builds, but was not run", FindingLayout.FixConfidence(Stopped() with { Fix = Fix(), Verified = built })!.Because);
+    }
+
+    [Fact]
+    public void AChangeThatOnlyStopsTheFailureIsNeverMoreThanPossible()
+    {
+        var ran = Verification.NotTested.With(VerificationStage.Ran, StageResult.Passed, "The copy ran.");
+        var certainty = FindingLayout.FixConfidence(Stopped() with { Fix = Fix(onlyStopsTheFailure: true), Verified = ran })!;
+
+        Assert.Equal(Confidence.Possible, certainty.Level);
+        Assert.Equal("a copy with the change ran without the error, but the change only stops the failure: what should happen instead is yours to decide",
+            certainty.Because);
+    }
+
+    [Fact]
+    public void WhyItThinksSoIsWhatTheRunRecordedThenHowTheFixWent()
+    {
+        var ran = Verification.NotTested.With(VerificationStage.Ran, StageResult.Passed, "The copy ran and did not stop with TypeError the way it did before.");
+        var reasons = FindingLayout.WhyItThinksThis(Stopped() with { RootCause = Traced, Fix = Fix(true), Verified = ran });
+
+        Assert.Equal([.. Traced.Evidence, "The copy ran and did not stop with TypeError the way it did before."], reasons.Select(reason => reason.Text));
+        Assert.All(reasons, reason => Assert.Equal(StageResult.Passed, reason.Mark));
+
+        // With nothing traced, what stands behind the finding.
+        Assert.Equal([Evidence.For(Stopped())], FindingLayout.WhyItThinksThis(Stopped()).Select(reason => reason.Text));
+    }
+
+    [Fact]
+    public void AnEditorsLineSaysWhatHappenedInThisProgram()
+    {
+        var line = DiagnosticLines.Line(Stopped(), DiagnosticFormat.Gcc);
+
+        Assert.Contains("The program stopped on line 10 with TypeError: 'NoneType' object is not subscriptable.", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("Square brackets", line, StringComparison.Ordinal);
+    }
+
+    /// <summary>A step of how it got there reads as its function, its line and what happened - the file's top level by that name.</summary>
+    [Fact]
+    public void EachStepOfTheWayNamesItsFunctionAndLine()
+    {
+        Assert.Equal("`find_member()`, line 8 - gives back None: `return None`",
+            FindingLayout.PathLine(new PathStep(2, "find_member", 8, "gives back None: `return None`")));
+        Assert.Equal("The top level, line 5 - sets `member` to None", FindingLayout.PathLine(new PathStep(0, "<module>", 5, "sets `member` to None")));
+
+        // A finding no run traced has no way to show.
+        Assert.Empty(FindingLayout.Path(Stopped()));
+    }
+
+    [Fact]
+    public void EachDecisionSaysWhetherItWasTrueAndWhatItsConditionRead()
+    {
+        // describe(21, labels) stopped in its else: both conditions above it read temperature as 21.
+        var decided = Stopped() with
+        {
+            Branches =
+            [
+                new BranchTaken(2, "if temperature < 0:", BranchKind.If, false, [new HeldValue("temperature", "21")]),
+                new BranchTaken(4, "elif temperature < 15:", BranchKind.ElseIf, false, [new HeldValue("temperature", "21")]),
+                new BranchTaken(6, "else:", BranchKind.Else, true, []),
+            ],
+        };
+
+        Assert.Equal(
+        [
+            "`if temperature < 0:` on line 2 was false - `temperature` was `21`",
+            "`elif temperature < 15:` on line 4 was false - `temperature` was `21`",
+            "`else:` on line 6 ran, as the conditions above it were false",
+        ], FindingLayout.WhyThisLineRan(decided));
+
+        // A finding no run recorded has nothing to say.
+        Assert.Empty(FindingLayout.WhyThisLineRan(Stopped()));
+    }
+
+    [Fact]
+    public void ACrashsOwnTraceIsTheWayWhenNoValueWasFollowed()
+    {
+        // The steps of the two-file scores program, as its run's trace gave them: main.py calls average in stats.py.
+        var traced = Stopped() with
+        {
+            CallPath =
+            [
+                new PathStep(0, "<module>", 10, "calls `load_average(\"week one\")`") { File = "main.py" },
+                new PathStep(1, "load_average", 7, "calls `average(scores)`") { File = "main.py" },
+                new PathStep(2, "average", 3, "stops on `return total // len(values)`") { File = "stats.py" },
+            ],
+        };
+
+        Assert.Equal(
+        [
+            "The top level in main.py, line 10 - calls `load_average(\"week one\")`",
+            "`load_average()` in main.py, line 7 - calls `average(scores)`",
+            "`average()` in stats.py, line 3 - stops on `return total // len(values)`",
+        ], FindingLayout.Path(traced).Select(FindingLayout.PathLine));
+
+        // A lambda or closure has no name to give.
+        Assert.Equal("A function with no name, line 4 - stops on `x.Length`", FindingLayout.PathLine(new PathStep(1, "", 4, "stops on `x.Length`")));
+    }
+}

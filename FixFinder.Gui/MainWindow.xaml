@@ -103,7 +103,11 @@
                             </StackPanel>
                         </DockPanel>
 
+                        <!-- 1 Summary: the title, and where it went wrong and where it showed. -->
                         <TextBlock desktop:InlineCode.Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap"/>
+                        <TextBlock desktop:InlineCode.Text="{Binding SummaryText}" FontSize="13" FontWeight="SemiBold" Margin="0,4,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SecondaryTextBrush}" AutomationProperties.AutomationId="FindingSummary"
+                                   Visibility="{Binding HasSummary, Converter={StaticResource Visible}}"/>
                         <TextBlock desktop:InlineCode.Text="{Binding WitnessText}" FontSize="12.5" Margin="0,4,0,0" TextWrapping="Wrap"
                                    AutomationProperties.AutomationId="FindingWitness"
                                    Visibility="{Binding HasWitness, Converter={StaticResource Visible}}"/>
@@ -111,82 +115,117 @@
                                    Foreground="{DynamicResource SecondaryTextBrush}" AutomationProperties.AutomationId="FindingConfirmation"
                                    Visibility="{Binding HasConfirmation, Converter={StaticResource Visible}}"/>
 
-                        <TextBlock Text="WHAT IS WRONG" Style="{StaticResource Label}"/>
-                        <TextBlock desktop:InlineCode.Text="{Binding Explanation}" Style="{StaticResource Body}"/>
+                        <!-- 2 Cause: this program first, never the language first. -->
+                        <TextBlock Text="CAUSE" Style="{StaticResource Label}"/>
+                        <TextBlock desktop:InlineCode.Text="{Binding Cause}" Style="{StaticResource Body}" AutomationProperties.AutomationId="FindingCause"/>
 
-                        <TextBlock Text="WHY IT MATTERS" Style="{StaticResource Label}"/>
-                        <TextBlock desktop:InlineCode.Text="{Binding WhyItMatters}" Style="{StaticResource Body}"/>
-
-                        <TextBlock Text="HOW TO FIX IT" Style="{StaticResource Label}"/>
-                        <TextBlock desktop:InlineCode.Text="{Binding SuggestedFix}" Style="{StaticResource Body}"/>
-
-                        <!-- The same fix as numbered steps: where to look, what happened, the change, and how to see it worked. -->
-                        <TextBlock Text="STEP BY STEP" Style="{StaticResource Label}"/>
-                        <ItemsControl ItemsSource="{Binding Steps}" Focusable="False"
-                                      AutomationProperties.AutomationId="FindingSteps" AutomationProperties.Name="Step by step">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <DockPanel Margin="0,2,0,2">
-                                        <TextBlock Text="{Binding NumberText}" Width="22" FontSize="13" FontWeight="SemiBold"
-                                                   VerticalAlignment="Top" Foreground="{DynamicResource HintBrush}"/>
-                                        <TextBlock desktop:InlineCode.Text="{Binding Text}" Style="{StaticResource Body}"/>
-                                    </DockPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <!-- How to make it happen, from what FixFinder ran: hidden when nothing ran it. -->
-                        <StackPanel Visibility="{Binding HasReproduce, Converter={StaticResource Visible}}">
-                            <TextBlock Text="TO SEE IT HAPPEN" Style="{StaticResource Label}"/>
-                            <TextBlock desktop:InlineCode.Text="{Binding Reproduce}" Style="{StaticResource Body}"
-                                       AutomationProperties.AutomationId="FindingReproduce"/>
+                        <!-- How it got there: the way the value went, call by call, as the run recorded it. -->
+                        <StackPanel Visibility="{Binding HasPath, Converter={StaticResource Visible}}">
+                            <TextBlock Text="HOW IT GOT THERE" Style="{StaticResource Label}"/>
+                            <ItemsControl ItemsSource="{Binding Path}" Focusable="False" AutomationProperties.Name="How it got there"
+                                          AutomationProperties.AutomationId="FindingPath">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock desktop:InlineCode.Text="{Binding Text}" Margin="{Binding Indent}" TextWrapping="Wrap"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
 
+                        <!-- Why this line ran: the ifs, elifs, elses and whiles around it, and what their conditions read then. -->
+                        <StackPanel Visibility="{Binding HasWhyThisLineRan, Converter={StaticResource Visible}}">
+                            <TextBlock Text="WHY THIS LINE RAN" Style="{StaticResource Label}"/>
+                            <ItemsControl ItemsSource="{Binding WhyThisLineRan}" Focusable="False" AutomationProperties.Name="Why this line ran"
+                                          AutomationProperties.AutomationId="FindingWhyThisLineRan">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock desktop:InlineCode.Text="{Binding}" Margin="0,1,0,1" TextWrapping="Wrap"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <!-- 3 Most likely fix, with how sure FixFinder is of the fix - not the same as how sure it is of the finding. -->
+                        <TextBlock Text="MOST LIKELY FIX" Style="{StaticResource Label}"/>
+                        <TextBlock desktop:InlineCode.Text="{Binding MostLikelyFix}" Style="{StaticResource Body}" AutomationProperties.AutomationId="FindingMostLikelyFix"/>
+                        <TextBlock Text="{Binding FixConfidenceText}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SecondaryTextBrush}" AutomationProperties.AutomationId="FindingFixConfidence"
+                                   Visibility="{Binding HasFixConfidence, Converter={StaticResource Visible}}"/>
+
+                        <!-- 4 Exact code to change: behind a button, so the reader can try it themselves first. -->
                         <StackPanel Visibility="{Binding HasCorrection, Converter={StaticResource Visible}}">
                             <Button Content="{Binding CorrectionToggleText}" Style="{StaticResource LinkButton}" HorizontalAlignment="Left"
                                     Margin="0,10,0,0" Tag="{Binding}" Click="ToggleCorrection_Click"
                                     AutomationProperties.AutomationId="FindingCorrectionToggle"
-                                    ToolTip="Try the fix yourself first, from how to fix it above - then compare."/>
+                                    ToolTip="Try the fix yourself first, from the most likely fix above - then compare."/>
 
                             <StackPanel Visibility="{Binding CorrectionShown, Converter={StaticResource Visible}}">
                                 <Border Background="{DynamicResource CodeBrush}" CornerRadius="6" Padding="8,6" Margin="0,8,0,0"
                                         Visibility="{Binding HasChange, Converter={StaticResource Visible}}">
-                                    <ItemsControl ItemsSource="{Binding ChangeLines}" Focusable="False"
-                                                  AutomationProperties.Name="What changes"
-                                                  AutomationProperties.AutomationId="FindingChange">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border x:Name="Row" Padding="4,1" CornerRadius="3">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock x:Name="Sign" Text=" " Width="12"
-                                                                   FontFamily="{StaticResource CodeFont}" FontSize="12.5"
-                                                                   Foreground="{DynamicResource DiffGutterBrush}"/>
-                                                        <TextBlock Text="{Binding Number}" Width="34" TextAlignment="Right" Margin="0,0,10,0"
-                                                                   FontFamily="{StaticResource CodeFont}" FontSize="12.5"
-                                                                   Foreground="{DynamicResource DiffGutterBrush}"/>
-                                                        <TextBlock x:Name="Code" local:ChangedCode.Line="{Binding}"
-                                                                   FontFamily="{StaticResource CodeFont}" FontSize="12.5"
-                                                                   Foreground="{DynamicResource CodeTextBrush}"
-                                                                   TextWrapping="NoWrap"/>
-                                                    </StackPanel>
-                                                </Border>
-                                                <DataTemplate.Triggers>
-                                                    <DataTrigger Binding="{Binding Kind}" Value="Removed">
-                                                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource DiffRemovedBrush}"/>
-                                                        <Setter TargetName="Code" Property="Foreground" Value="{DynamicResource DiffRemovedTextBrush}"/>
-                                                        <Setter TargetName="Sign" Property="Text" Value="-"/>
-                                                        <Setter TargetName="Sign" Property="Foreground" Value="{DynamicResource DiffRemovedTextBrush}"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Kind}" Value="Added">
-                                                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource DiffAddedBrush}"/>
-                                                        <Setter TargetName="Code" Property="Foreground" Value="{DynamicResource DiffAddedTextBrush}"/>
-                                                        <Setter TargetName="Sign" Property="Text" Value="+"/>
-                                                        <Setter TargetName="Sign" Property="Foreground" Value="{DynamicResource DiffAddedTextBrush}"/>
-                                                    </DataTrigger>
-                                                </DataTemplate.Triggers>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <!-- Side by side: the code as it is now beside the code as the fix leaves it, each line taken out beside the one put in its place. -->
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="NOW" FontSize="11" FontWeight="SemiBold" Margin="4,0,0,0"
+                                                       Foreground="{DynamicResource DiffGutterBrush}"/>
+                                            <TextBlock Grid.Column="1" Text="AFTER THE FIX" FontSize="11" FontWeight="SemiBold" Margin="12,0,0,0"
+                                                       Foreground="{DynamicResource DiffGutterBrush}"/>
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding ChangeRows}" Focusable="False"
+                                                      AutomationProperties.Name="What changes"
+                                                      AutomationProperties.AutomationId="FindingChange">
+                                            <ItemsControl.Resources>
+                                                <!-- One side of a row: its number and its code, coloured and marked by whether it is taken out or put in. -->
+                                                <DataTemplate x:Key="ChangeSide">
+                                                    <Border x:Name="Row" Padding="4,1" CornerRadius="3">
+                                                        <DockPanel>
+                                                            <TextBlock x:Name="Sign" DockPanel.Dock="Left" Text=" " Width="12"
+                                                                       FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                                       Foreground="{DynamicResource DiffGutterBrush}"/>
+                                                            <TextBlock DockPanel.Dock="Left" Text="{Binding Number}" Width="34" TextAlignment="Right" Margin="0,0,10,0"
+                                                                       FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                                       Foreground="{DynamicResource DiffGutterBrush}"/>
+                                                            <TextBlock x:Name="Code" local:ChangedCode.Line="{Binding}"
+                                                                       FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                                       Foreground="{DynamicResource CodeTextBrush}"
+                                                                       TextWrapping="Wrap"/>
+                                                        </DockPanel>
+                                                    </Border>
+                                                    <DataTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding Kind}" Value="Removed">
+                                                            <Setter TargetName="Row" Property="Background" Value="{DynamicResource DiffRemovedBrush}"/>
+                                                            <Setter TargetName="Code" Property="Foreground" Value="{DynamicResource DiffRemovedTextBrush}"/>
+                                                            <Setter TargetName="Sign" Property="Text" Value="-"/>
+                                                            <Setter TargetName="Sign" Property="Foreground" Value="{DynamicResource DiffRemovedTextBrush}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Kind}" Value="Added">
+                                                            <Setter TargetName="Row" Property="Background" Value="{DynamicResource DiffAddedBrush}"/>
+                                                            <Setter TargetName="Code" Property="Foreground" Value="{DynamicResource DiffAddedTextBrush}"/>
+                                                            <Setter TargetName="Sign" Property="Text" Value="+"/>
+                                                            <Setter TargetName="Sign" Property="Foreground" Value="{DynamicResource DiffAddedTextBrush}"/>
+                                                        </DataTrigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </ItemsControl.Resources>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <ContentControl Content="{Binding Now}" ContentTemplate="{StaticResource ChangeSide}"
+                                                                        Focusable="False" IsTabStop="False"/>
+                                                        <ContentControl Grid.Column="1" Content="{Binding AfterTheFix}" ContentTemplate="{StaticResource ChangeSide}"
+                                                                        Focusable="False" IsTabStop="False" Margin="8,0,0,0"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
                                 </Border>
 
                                 <StackPanel Visibility="{Binding HasExample, Converter={StaticResource Visible}}">
@@ -208,6 +247,89 @@
                                     </DockPanel>
                                 </Border>
                             </StackPanel>
+                        </StackPanel>
+
+                        <!-- 5 Why FixFinder thinks this: what was seen, and how trying the fix went, each with its mark. -->
+                        <TextBlock Text="WHY FIXFINDER THINKS THIS" Style="{StaticResource Label}"/>
+                        <ItemsControl ItemsSource="{Binding Reasons}" Focusable="False"
+                                      AutomationProperties.AutomationId="FindingReasons" AutomationProperties.Name="Why FixFinder thinks this">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,2,0,2">
+                                        <TextBlock x:Name="Mark" Text="{Binding Mark}" Width="20" FontSize="13" FontWeight="SemiBold"
+                                                   VerticalAlignment="Top" Foreground="{DynamicResource SuccessBrush}"/>
+                                        <TextBlock desktop:InlineCode.Text="{Binding Text}" Style="{StaticResource Body}"/>
+                                    </DockPanel>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding Failed}" Value="True">
+                                            <Setter TargetName="Mark" Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- The variable timeline: choose a variable, see each value it held and the line that gave it. -->
+                        <StackPanel Visibility="{Binding HasTimeline, Converter={StaticResource Visible}}" AutomationProperties.AutomationId="FindingTimeline">
+                            <TextBlock Text="VARIABLE TIMELINE" Style="{StaticResource Label}"/>
+                            <TextBlock Text="{Binding TimelineIntroduction}" Style="{StaticResource Body}" FontSize="12.5"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,6">
+                                <ComboBox ItemsSource="{Binding TimelineNames}" SelectedItem="{Binding SelectedTimelineName, Mode=TwoWay}" MinWidth="160"
+                                          FontFamily="{StaticResource CodeFont}" VerticalAlignment="Center"
+                                          AutomationProperties.AutomationId="FindingTimelineVariable" AutomationProperties.Name="Variable to show"/>
+                                <TextBlock Text="{Binding TimelineSummary}" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12"
+                                           Foreground="{DynamicResource SecondaryTextBrush}"/>
+                            </StackPanel>
+                            <Border Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="8,6">
+                                <ItemsControl ItemsSource="{Binding TimelineRows}" Focusable="False"
+                                              AutomationProperties.AutomationId="FindingTimelineValues" AutomationProperties.Name="Values it held">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="0,1,0,1">
+                                                <TextBlock Text="{Binding GivenBy}" Width="150" FontSize="12.5" Foreground="{DynamicResource HintBrush}"/>
+                                                <TextBlock Text="{Binding Value}" FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                           Foreground="{DynamicResource CodeTextBrush}" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- 6 Learn more: what this kind of mistake is, in general, once this program's own has been said. -->
+                        <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0" Margin="0,16,0,0" Padding="0,10,0,0">
+                            <TextBlock Text="LEARN MORE" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}"/>
+                        </Border>
+
+                        <StackPanel Visibility="{Binding HasLearnMore, Converter={StaticResource Visible}}">
+                            <TextBlock Text="WHAT THIS KIND OF MISTAKE IS" Style="{StaticResource Label}"/>
+                            <TextBlock desktop:InlineCode.Text="{Binding LearnMore}" Style="{StaticResource Body}" AutomationProperties.AutomationId="FindingLearnMore"/>
+                        </StackPanel>
+
+                        <TextBlock Text="WHY IT MATTERS" Style="{StaticResource Label}"/>
+                        <TextBlock desktop:InlineCode.Text="{Binding WhyItMatters}" Style="{StaticResource Body}"/>
+
+                        <!-- The same fix as numbered steps: where to look, what happened, the change, and how to see it worked. -->
+                        <TextBlock Text="STEP BY STEP" Style="{StaticResource Label}"/>
+                        <ItemsControl ItemsSource="{Binding Steps}" Focusable="False"
+                                      AutomationProperties.AutomationId="FindingSteps" AutomationProperties.Name="Step by step">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,2,0,2">
+                                        <TextBlock Text="{Binding NumberText}" Width="22" FontSize="13" FontWeight="SemiBold"
+                                                   VerticalAlignment="Top" Foreground="{DynamicResource HintBrush}"/>
+                                        <TextBlock desktop:InlineCode.Text="{Binding Text}" Style="{StaticResource Body}"/>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- How to make it happen, from what FixFinder ran: hidden when nothing ran it. -->
+                        <StackPanel Visibility="{Binding HasReproduce, Converter={StaticResource Visible}}">
+                            <TextBlock Text="TO SEE IT HAPPEN" Style="{StaticResource Label}"/>
+                            <TextBlock desktop:InlineCode.Text="{Binding Reproduce}" Style="{StaticResource Body}"
+                                       AutomationProperties.AutomationId="FindingReproduce"/>
                         </StackPanel>
 
                         <!-- What the language itself said, as it said it, and how to read a message like it. -->
@@ -287,9 +409,6 @@
                                                AutomationProperties.AutomationId="FindingFollows"/>
                                 </Border>
 
-                                <TextBlock Text="WHY FIXFINDER IS THIS SURE" Style="{StaticResource Label}"/>
-                                <TextBlock desktop:InlineCode.Text="{Binding EvidenceText}" Style="{StaticResource Body}"
-                                           AutomationProperties.AutomationId="FindingEvidence"/>
 
                                 <StackPanel Visibility="{Binding HasSlice, Converter={StaticResource Visible}}">
                                     <TextBlock Text="THE LINES THAT DECIDE IT" Style="{StaticResource Label}"/>
@@ -754,6 +873,16 @@
 
                 <DockPanel Grid.Row="0" Margin="0,0,0,12">
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Learn or Fix: whether a finding's corrected code waits to be asked for, or is shown straight away. -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0"
+                                    AutomationProperties.Name="Learn or fix">
+                            <RadioButton x:Name="LearnMode" AutomationProperties.AutomationId="LearnMode" GroupName="Mode" Content="Learn"
+                                         Style="{StaticResource FilterPill}" Checked="Mode_Checked" Margin="0,0,4,0"
+                                         ToolTip="The corrected code waits behind Show the corrected code, so the fix can be worked out from what is wrong and tried first."/>
+                            <RadioButton x:Name="FixMode" AutomationProperties.AutomationId="FixMode" GroupName="Mode" Content="Fix"
+                                         Style="{StaticResource FilterPill}" Checked="Mode_Checked"
+                                         ToolTip="The corrected code is shown with each finding straight away."/>
+                        </StackPanel>
                         <Border x:Name="ActivityPill" Style="{StaticResource Pill}" Margin="0,0,10,0"
                                 Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
                                 AutomationProperties.AutomationId="ActivityPill"
@@ -869,6 +998,9 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <!-- The kinds of mistake this check found that turned up in other programs lately, with the habit that stops each. -->
+                            <TextBlock x:Name="RecurringText" AutomationProperties.AutomationId="RecurringText" Visibility="Collapsed"
+                                       TextWrapping="Wrap" FontSize="12.5" Margin="0,6,0,0" Foreground="{DynamicResource SecondaryTextBrush}"/>
                         </StackPanel>
                     </Border>
 
@@ -936,6 +1068,42 @@
                                     <TextBox Text="{Binding PrintedText, Mode=OneWay}" Style="{StaticResource CodeBlock}"
                                              AutomationProperties.Name="What it printed"/>
                                 </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
+
+                <!-- The algorithms the code has the shape of, and what makes it look so: closed until opened. -->
+                <Expander x:Name="RecognisedExpander" AutomationProperties.AutomationId="RecognisedExpander" IsExpanded="False" Visibility="Collapsed"
+                          Margin="0,0,0,10" Foreground="{DynamicResource SecondaryTextBrush}"
+                          Header="What the code looks like - the algorithms recognised in it">
+                    <ItemsControl x:Name="RecognisedList" AutomationProperties.AutomationId="RecognisedList" Margin="0,6,0,0" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,8">
+                                    <TextBlock desktop:InlineCode.Text="{Binding Title}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextBrush}"/>
+                                    <TextBlock desktop:InlineCode.Text="{Binding HowItWorks}" FontSize="12.5" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextBrush}"/>
+                                    <TextBlock Text="{Binding WhatToKnow}" FontSize="12" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                    <TextBlock desktop:InlineCode.Text="{Binding Tried}" FontSize="12.5" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextBrush}" Visibility="{Binding HasTried, Converter={StaticResource Visible}}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
+
+                <!-- How the program's own files use each other, for a program of more than one: closed until opened. -->
+                <Expander x:Name="FileMapExpander" AutomationProperties.AutomationId="FileMapExpander" IsExpanded="False" Visibility="Collapsed"
+                          Margin="0,0,0,10" Foreground="{DynamicResource SecondaryTextBrush}"
+                          Header="How the files use each other">
+                    <ItemsControl x:Name="FileMapList" AutomationProperties.AutomationId="FileMapList" Margin="0,6,0,0" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock desktop:InlineCode.Text="{Binding}" FontSize="12.5" Margin="0,0,0,4" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextBrush}"/>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

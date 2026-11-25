@@ -91,6 +91,63 @@ public static class FixRun
     }
 
     /// <summary>
+    /// Runs a copy of the program with <paramref name="changed"/> in place of <paramref name="source"/>'s lines - built first,
+    /// for a language that is built - and gives back the run: what it printed and the error it stopped with. Null when the
+    /// copy could not be made, built or started, so nothing is read from a run that did not happen.
+    /// </summary>
+    /// <param name="program">The file the program is run from, which may be another of its files than <paramref name="source"/>.</param>
+    /// <param name="typed">What was typed into the program when it failed, so the copy reaches the same lines.</param>
+    internal static async Task<TargetRunResult?> RunChangedAsync(
+        SourceFile source, IReadOnlyList<string> changed, string program, string? typed, CancellationToken cancellationToken)
+    {
+        var folder = Path.Combine(Root, Guid.NewGuid().ToString("N")[..12]);
+        string? copy = null;
+
+        try
+        {
+            Directory.CreateDirectory(folder);
+
+            (copy, var copiedWhole) = CopyProgram(program, folder);
+            var changedCopy = Path.GetFullPath(source.Path).Equals(Path.GetFullPath(program), StringComparison.OrdinalIgnoreCase) ? copy
+                : copiedWhole ? ProgramCopy.InCopy(ProgramCopy.RootOf(program), source.Path, folder)
+                : Path.Combine(folder, Path.GetFileName(source.Path));
+
+            await File.WriteAllBytesAsync(changedCopy, source.Render(changed), cancellationToken);
+
+            var plan = TargetFactory.FromFile(copy);
+            if (!plan.Ok || plan.Spec is null) return null;
+
+            var runner = new TargetRunner(new ParserRegistry());
+            if (plan.Compile is { } compile && (await runner.RunAsync(compile, cancellationToken)).Outcome != RunOutcome.ExitedClean) return null;
+
+            var run = await runner.RunAsync(string.IsNullOrEmpty(typed) ? plan.Spec : plan.Spec.WithInput(typed), cancellationToken);
+            return run.Outcome is RunOutcome.LaunchFailed or RunOutcome.Cancelled ? null : run;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+        finally
+        {
+            try
+            {
+                if (copy is not null && CompiledLanguages.Handles(Path.GetExtension(copy)))
+                {
+                    var build = CompiledLanguages.OutputDirectory(copy);
+                    if (Directory.Exists(build)) Directory.Delete(build, recursive: true);
+                }
+
+                Directory.Delete(folder, recursive: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            finally
+            {
+                ProgramCopy.Forget(folder);
+            }
+        }
+    }
+
+    /// <summary>
     /// Copies the program into <paramref name="folder"/> and says where the chosen file is in the copy, and whether the
     /// whole program came. The whole program comes, laid out as it is and with the files it reads, since a fix to one file
     /// of a program that will not run without the others - or without its scores.txt - cannot be tried on its own. When

@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using FixFinder.Core.Checking;
+using FixFinder.Core.Execution;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.LocalFixes.Rules;
 
@@ -35,6 +36,7 @@ public static partial class CLikeReviewPatterns
         Pattern("logic-java-scanner-skips-line", Java, ScannerSkipsLine),
         Pattern("logic-java-random-always-zero", Java, RandomAlwaysZero, Severity.Error, Confidence.Certain),
         Pattern("logic-java-wrapper-equality", Java, WrapperEquality),
+        Pattern("logic-java-record-equality", Java, RecordEquality),
         Pattern("logic-java-misspelt-override", Java, MisspeltObjectMethod),
         Pattern("logic-java-equals-overload", Java, EqualsOverload),
         Pattern("logic-java-chars-added", Java, CharsAdded),
@@ -47,6 +49,7 @@ public static partial class CLikeReviewPatterns
         Pattern("logic-js-loose-equality", Script, LooseEquality, Severity.Suggestion, Confidence.Likely, FindingKind.Style),
         Pattern("logic-js-template-in-quotes", Script, TemplateInQuotes),
         Pattern("logic-js-compare-with-new-array", Script, CompareWithNewArray, Severity.Error, Confidence.Certain),
+        Pattern("logic-js-too-few-arguments", Script, TooFewArguments),
         Pattern("logic-nan-comparison", CodePattern.Files(".js", ".mjs", ".cjs", ".java", ".cs"), NaNComparison, Severity.Error, Confidence.Certain),
     ];
 
@@ -366,18 +369,30 @@ public static partial class CLikeReviewPatterns
 
             var name = match.Groups["name"].Value;
             var value = match.Groups["value"].Value;
-            var abs = Extension(source) switch { ".java" => "Math.abs", ".cs" => "Math.Abs", _ => "fabs" };
-            var close = match.Groups["op"].Value == "==" ? $"{abs}({name} - {value}) < 1e-9" : $"{abs}({name} - {value}) >= 1e-9";
+            var equal = match.Groups["op"].Value == "==";
             var line = source.Lines[i];
+
+            // C and C++ have fabs only with math.h or cmath included; without it, the difference is checked both ways.
+            var abs = Extension(source) switch
+            {
+                ".java" => "Math.abs",
+                ".cs" => "Math.Abs",
+                _ when masked.Any(text => Regex.IsMatch(text, @"^\s*#\s*include\s*<(?:math\.h|cmath)>")) => Extension(source) == ".c" ? "fabs" : "std::fabs",
+                _ => null,
+            };
+            var wholeCondition = line[..match.Index].TrimEnd().EndsWith('(') && line[(match.Index + match.Length)..].TrimStart().StartsWith(')');
+            var bothWays = equal ? $"{name} - {value} < 1e-9 && {value} - {name} < 1e-9" : $"{name} - {value} >= 1e-9 || {value} - {name} >= 1e-9";
+            var close = abs is not null
+                ? equal ? $"{abs}({name} - {value}) < 1e-9" : $"{abs}({name} - {value}) >= 1e-9"
+                : wholeCondition ? bothWays : $"({bothWays})";
 
             yield return new LogicFinding(id, i + 1,
                 $"`{name}` is a decimal number compared exactly with {value}, and decimal arithmetic is rarely exact - 0.1 + 0.2 is 0.30000000000000004",
-                Extension(source) is ".java" or ".cs"
-                    ? Replace(id, $"Compare within a small tolerance: {close}",
-                        "Most decimal fractions cannot be stored exactly in binary, so sums and products land a tiny amount away from the value you " +
-                        "expect. Checking that the difference is tiny, rather than zero, compares them the way you meant.",
-                        source, i + 1, line[..match.Index] + close + line[(match.Index + match.Length)..])
-                    : null);
+                Replace(id, $"Compare within a small tolerance: {close}",
+                    "Most decimal fractions cannot be stored exactly in binary, so sums and products land a tiny amount away from the value you " +
+                    "expect. Checking that the difference is tiny, rather than zero, compares them the way you meant." +
+                    (abs is null ? " Without math.h, the difference is checked from both sides rather than with fabs." : ""),
+                    source, i + 1, line[..match.Index] + close + line[(match.Index + match.Length)..]));
         }
     }
 
@@ -462,6 +477,133 @@ public static partial class CLikeReviewPatterns
                         "Java keeps one shared object for each Integer from -128 to 127, so == happens to work for those and then fails for 128 and " +
                         "above. equals compares the numbers themselves.",
                         source, i + 1, line[..match.Index] + equals + line[(match.Index + match.Length)..]));
+
+                break;
+            }
+        }
+    }
+
+    /// <summary>A function the file declares - function add(a, b) or const add = (a, b) =&gt; - with its parameters.</summary>
+    [GeneratedRegex(@"\bfunction\s+(?<name>[A-Za-z_$][\w$]*)\s*\((?<parameters>[^()]*)\)|\b(?:const|let|var)\s+(?<name>[A-Za-z_$][\w$]*)\s*=\s*(?:function\s*)?\((?<parameters>[^()]*)\)\s*(?:=>|\{)")]
+    private static partial Regex FunctionDeclared();
+
+    /// <summary>
+    /// A function of the file's own called with fewer values than it has parameters: JavaScript gives the rest undefined and
+    /// says nothing, so add(1) of function add(a, b) works out 1 + undefined, NaN. A parameter with a default, or a ...rest,
+    /// is left out of the count. TypeScript is not read here: its compiler says so itself (TS2554). The finding has no change -
+    /// only the program's writer knows what the missing value was.
+    /// </summary>
+    private static IEnumerable<LogicFinding> TooFewArguments(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        // A program that reads arguments takes as many values as it is given, by design.
+        if (TypeScriptCheck.IsTypeScript(source.Path) || masked.Any(text => Regex.IsMatch(text, @"\barguments\b"))) yield break;
+
+        // Only a line holding undefined, null, ??, || or typeof can test a parameter, so only those are read for each name - and
+        // each name once: reading every line again for every function made a file of 50,000 lines take minutes.
+        var testingLines = masked.Where(text => text.Contains("undefined", StringComparison.Ordinal) || text.Contains("null", StringComparison.Ordinal) ||
+                                                text.Contains("??", StringComparison.Ordinal) || text.Contains("||", StringComparison.Ordinal) ||
+                                                text.Contains("typeof", StringComparison.Ordinal)).ToList();
+        var expectedLeftOut = new Dictionary<string, bool>(StringComparer.Ordinal);
+        bool ExpectedLeftOut(string parameter)
+        {
+            if (!expectedLeftOut.TryGetValue(parameter, out var tested))
+            {
+                var test = new Regex($@"(?<![\w$.]){Regex.Escape(parameter)}\s*(?:[!=]==?\s*(?:undefined|null)|\?\?|\|\|)|typeof\s+{Regex.Escape(parameter)}\b");
+                expectedLeftOut[parameter] = tested = testingLines.Any(test.IsMatch);
+            }
+
+            return tested;
+        }
+
+        var needed = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        foreach (var declared in masked.SelectMany(text => FunctionDeclared().Matches(text)))
+        {
+            var parameters = declared.Groups["parameters"].Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (parameters.Any(parameter => parameter.Contains('=') || parameter.StartsWith("...", StringComparison.Ordinal) || parameter.Contains('{'))) continue;
+
+            // A parameter the code expects to be left out - checked against undefined or null, or given a fallback with ?? or ||.
+            if (parameters.Any(ExpectedLeftOut)) continue;
+
+            needed[declared.Groups["name"].Value] = parameters;
+        }
+        if (needed.Count == 0) yield break;
+
+        for (var lineIndex = 0; lineIndex < masked.Count; lineIndex++)
+        {
+            foreach (Match call in Regex.Matches(masked[lineIndex], @"(?<![\w$.])(?<name>[A-Za-z_$][\w$]*)\s*\("))
+            {
+                var name = call.Groups["name"].Value;
+                if (!needed.TryGetValue(name, out var parameters) || Regex.IsMatch(masked[lineIndex][..call.Index], @"\bfunction\s*$")) continue;
+
+                var open = call.Index + call.Length - 1;
+                if (Brackets.ClosingParenthesis(masked[lineIndex], open) is not { } close) continue;
+
+                var inside = masked[lineIndex][(open + 1)..close];
+                var given = inside.Trim().Length == 0 ? 0 : TopLevelCommas(inside) + 1;
+                if (given >= parameters.Length || inside.Contains("...", StringComparison.Ordinal)) continue;
+
+                var missing = parameters[given..];
+                yield return new LogicFinding(id, lineIndex + 1,
+                    $"`{name}` takes {parameters.Length} values - {string.Join(", ", parameters)} - and is given {given} here, so " +
+                    $"{string.Join(" and ", missing.Select(parameter => $"`{parameter}`"))} {(missing.Length == 1 ? "is" : "are")} undefined inside it, " +
+                    "and JavaScript says nothing",
+                    null);
+                break;
+            }
+        }
+    }
+
+    /// <summary>How many commas separate values at the top level of a call's brackets - not those inside brackets of their own.</summary>
+    private static int TopLevelCommas(string inside)
+    {
+        var depth = 0;
+        var commas = 0;
+
+        foreach (var character in inside)
+        {
+            if (character is '(' or '[' or '{') depth++;
+            else if (character is ')' or ']' or '}') depth--;
+            else if (character == ',' && depth == 0) commas++;
+        }
+
+        return commas;
+    }
+
+    /// <summary>
+    /// Two records compared with == or !=: new Point(1, 2) == new Point(1, 2) is false, as == asks whether they are one object.
+    /// A record's equals compares what it holds - its components - which is what a record is for.
+    /// </summary>
+    private static IEnumerable<LogicFinding> RecordEquality(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        var recordTypes = masked
+            .SelectMany(text => Regex.Matches(text, @"\brecord\s+(?<type>[A-Z][\w$]*)\s*(?:<[^>]*>)?\s*\(").Select(declared => declared.Groups["type"].Value))
+            .ToHashSet(StringComparer.Ordinal);
+        if (recordTypes.Count == 0) yield break;
+
+        var typeNames = string.Join("|", recordTypes.Select(Regex.Escape));
+        var records = masked
+            .SelectMany(text => Regex.Matches(text, $@"(?:\b(?:{typeNames})\s+(?<name>[a-z_]\w*)\s*[=;,)]|\bvar\s+(?<name>[a-z_]\w*)\s*=\s*new\s+(?:{typeNames})\s*\()"))
+            .Select(declared => declared.Groups["name"].Value)
+            .ToHashSet(StringComparer.Ordinal);
+        if (records.Count < 2) yield break;
+
+        for (var lineIndex = 0; lineIndex < masked.Count; lineIndex++)
+        {
+            foreach (Match compared in Regex.Matches(masked[lineIndex], @"(?<![\w.])(?<a>[A-Za-z_]\w*)\s*(?<op>==|!=)\s*(?<b>[A-Za-z_]\w*)(?![\w.(])"))
+            {
+                var (a, b) = (compared.Groups["a"].Value, compared.Groups["b"].Value);
+                if (!records.Contains(a) || !records.Contains(b)) continue;
+
+                var line = source.Lines[lineIndex];
+                var equals = compared.Groups["op"].Value == "==" ? $"{a}.equals({b})" : $"!{a}.equals({b})";
+
+                yield return new LogicFinding(id, lineIndex + 1,
+                    $"`{a}` and `{b}` are records, so `{compared.Value.Trim()}` asks whether they are the same object - two records holding " +
+                    "the same values are still two objects",
+                    Replace(id, $"Compare what they hold: {equals}",
+                        "== on two objects asks whether they are one and the same object, so two records made separately are never == even " +
+                        "when every value in them is the same. A record's equals compares its values, one by one.",
+                        source, lineIndex + 1, line[..compared.Index] + equals + line[(compared.Index + compared.Length)..]));
 
                 break;
             }

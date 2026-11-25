@@ -221,12 +221,47 @@ public class ProgramCheckerTests(ITestOutputHelper output) : IDisposable
 
         var report = await CheckAsync(file, CodeLanguage.Java);
 
+        // Worked out from the code, then tried for real: average is called with an empty array, and stops as predicted.
         var division = Assert.Single(report.Findings, f => f.RuleId == "analysis-division-by-zero");
         Assert.Equal(9, division.Line);
-        Assert.Equal(Confidence.Possible, division.Confidence);
+        Assert.Equal(Confidence.Certain, division.Confidence);
         Assert.NotNull(division.FoundBy);
         Assert.Equal("`values` is empty", division.Witness);
+        Assert.Equal("Running `average(new int[0])` stopped with ArithmeticException: / by zero on line 9.", division.Confirmation);
         Assert.Equal("1 possible mistake in the code", report.LogicSummary);
+    }
+
+    [Fact]
+    public async Task GoValuesAreFollowedAndTheirPanicTriedForReal()
+    {
+        if (!LocalFixLiveTests.Available("go")) return;
+
+        var file = Write(Path.Combine("go", "main.go"), """
+            package main
+
+            import "fmt"
+
+            func average(marks []int) int {
+            	total := 0
+            	for _, mark := range marks {
+            		total += mark
+            	}
+            	return total / len(marks)
+            }
+
+            func main() {
+            	fmt.Println(average([]int{40, 60}))
+            }
+            """);
+
+        var report = await CheckAsync(file, CodeLanguage.Go);
+
+        // Worked out from the code, then tried for real: average is called with an empty slice, and panics as predicted.
+        var division = Assert.Single(report.Findings, f => f.RuleId == "analysis-division-by-zero");
+        Assert.Equal(10, division.Line);
+        Assert.Equal(Confidence.Certain, division.Confidence);
+        Assert.Equal("`marks` is empty", division.Witness);
+        Assert.Equal("Running `average([]int{})` stopped with a panic - runtime error: integer divide by zero - on line 10.", division.Confirmation);
     }
 
     [Fact]
@@ -341,5 +376,31 @@ public class ProgramCheckerTests(ITestOutputHelper output) : IDisposable
         Assert.All(
             report.Findings.Where(finding => finding.RuleId == "stopped-before-expected-output"),
             finding => Assert.Contains("stopped with an error", finding.Explanation, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task JavaScriptValuesAreFollowedAndTheirTypeErrorTriedForReal()
+    {
+        if (!LocalFixLiveTests.Available("node")) return;
+
+        var file = Write(Path.Combine("js", "greet.js"), """
+            function greet(person) {
+                if (person === null) {
+                    console.log("nobody there");
+                }
+                return "hello " + person.name;
+            }
+
+            console.log(greet({ name: "sam" }));
+            """);
+
+        var report = await CheckAsync(file, CodeLanguage.JavaScript);
+
+        // Worked out from the code, then tried for real: greet is called with null, and stops as predicted.
+        var nothing = Assert.Single(report.Findings, f => f.RuleId == "analysis-null-used");
+        Assert.Equal(5, nothing.Line);
+        Assert.Equal(Confidence.Certain, nothing.Confidence);
+        Assert.Equal("`person` is null", nothing.Witness);
+        Assert.Equal("Running `greet(null)` stopped with TypeError: Cannot read properties of null (reading 'name') on line 5.", nothing.Confirmation);
     }
 }

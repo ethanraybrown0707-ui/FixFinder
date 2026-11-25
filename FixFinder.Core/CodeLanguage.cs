@@ -16,9 +16,9 @@ public sealed record CodeLanguage(
 
     public static CodeLanguage Java { get; } = new("Java", [".java", ".jar"], ["java"], ["java-"]);
 
-    public static CodeLanguage C { get; } = new("C", [".c"], ["gcc", "msvc"], ["c-", "cpp-"]);
+    public static CodeLanguage C { get; } = new("C", [".c"], ["gcc", "msvc", "c-assert"], ["c-", "cpp-"]);
 
-    public static CodeLanguage Cpp { get; } = new("C++", [".cpp", ".cc", ".cxx", ".c++"], ["gcc", "msvc"], ["cpp-", "c-"]);
+    public static CodeLanguage Cpp { get; } = new("C++", [".cpp", ".cc", ".cxx", ".c++"], ["gcc", "msvc", "c-assert"], ["cpp-", "c-"]);
 
     public static CodeLanguage CSharp { get; } = new("C#", [".cs", ".csproj", ".sln"], ["csharp", "msvc"], ["csharp-"]);
 

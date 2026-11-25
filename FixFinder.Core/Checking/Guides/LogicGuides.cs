@@ -13,6 +13,186 @@ internal static class LogicGuides
 
     private static IReadOnlyList<GuideEntry> Shared { get; } =
     [
+        GuideFor(["analysis-same-answer-always"], "A yes-or-no function that always gives the same answer",
+            "A function named as a question - is it prime, has it a space, is it valid - is there to answer it, yes for some "
+            + "values and no for others. Every return of this one gives back the same answer, so whatever it is asked about, "
+            + "it says the same: the code that calls it cannot tell anything apart by it. Most often one of the returns was "
+            + "meant to give the other answer - the one where it finds what it looks for, as a divisor in a prime test.",
+            "Each if or loop that asks it goes the same way every time, so the program treats every value alike - every number "
+            + "prime, every name valid - however wrong that is for some of them.",
+            "Work out by hand one value it should say yes to and one it should say no to, follow each through the function, "
+            + "and change the return that gives the wrong answer for one of them.",
+            ""),
+
+        GuideFor(["analysis-duplicate-function"], "A function written twice",
+            "Two functions here are the same lines, but for the names of their own parameters and variables: one was made by "
+            + "copying the other. Code written twice has to be put right twice - a mistake fixed in one copy stays in the other.",
+            "The copies drift apart: the next fix or change goes into one of them, and the program then does one thing in one "
+            + "place and something else in the other, which is hard to see from either.",
+            "Keep one of them and call it from both places, with a parameter for anything that should differ between them - or "
+            + "have the copy call the one it was copied from.",
+            ""),
+
+        GuideFor(["tests-miss-change"], "A change the tests do not catch",
+            "Every test passes, so FixFinder measured what they check: it made small changes to the code they call, one at a "
+            + "time in a copy - the kinds of change a mistake makes, a bound off by one or the wrong operator - and ran the tests "
+            + "with each. With this one every test still passed, so if the code went wrong this way, the tests would not say so. "
+            + "Now and then a change makes no difference to what the code does at all; then no test could notice it, and there "
+            + "is nothing to add.",
+            "Tests that pass whatever a line does check less than they seem to, and the mistakes they miss are the ones that "
+            + "reach whoever uses the program.",
+            "Add a test whose answer depends on that line, and check the answer exactly: for a bound or a comparison, one with a "
+            + "value right on the boundary; for arithmetic, one whose answer would change with the other operator.",
+            ""),
+
+        GuideFor(["algorithm-sort-wrong"], "A sort that does not sort every list",
+            "The function is written the way a sort is written, so FixFinder called it with lists of its own - empty, of one "
+            + "item, in order, in reverse order, with repeats - and looked at what came back. For one of them it was not the "
+            + "same items in order, or the call stopped with an error. The list shown is the shortest that went wrong, which "
+            + "is the easiest to follow through the code by hand.",
+            "A sort that works on the lists it was tried with by hand can still miss the last pair, the first item, or a "
+            + "list of two - and everything that relies on the order goes wrong with it.",
+            "Follow the list shown through the loops by hand, writing down the list after each pass: the pass where it stops "
+            + "changing too early, or changes the wrong items, is where the loop's start, end or comparison is out by one.",
+            ""),
+
+        GuideFor(["algorithm-extreme-wrong"], "A search for the largest or smallest that misses it",
+            "The function is written the way a search for the largest, or smallest, item is written - it keeps the best it "
+            + "has seen and replaces it with any better item - so FixFinder called it with lists of its own, never empty, and "
+            + "looked at what came back. For one of them it was not the list's largest, or smallest, item, or the call stopped "
+            + "with an error.",
+            "A start that is not an item of the list - 0, or a very large or small number - is never replaced when every item "
+            + "is on the wrong side of it, so the answer is a number that is not in the list at all.",
+            "Start with the list's first item, and compare the rest with it - or use the language's own largest and smallest, "
+            + "such as max and min, which start from the list itself.",
+            ""),
+
+        GuideFor(["algorithm-prime-wrong"], "A prime test that gives a wrong answer",
+            "The function is written the way a prime test is written - it tries numbers as divisors, and says not prime at the "
+            + "first that divides exactly - so FixFinder called it with every number from 0 to 30 and set each answer beside "
+            + "whether the number is prime. The number shown is the smallest it got wrong.",
+            "A prime test usually goes wrong at the edges: 0 and 1, which are not prime and have no divisor to find; 4, 9 and "
+            + "the other squares, when the divisors stop too soon; or every number, when the divisors run up to the number "
+            + "itself, which always divides it.",
+            "Say first that a number below 2 is not prime, then try each divisor from 2 while divisor times divisor is no more "
+            + "than the number - not the number itself.",
+            ""),
+
+        GuideFor(["algorithm-leap-year-wrong"], "A leap-year test that gives a wrong answer",
+            "The function is written the way a leap-year test is written - it asks whether 4, 100 or 400 divide the year - so "
+            + "FixFinder called it with years whose answers are known, and set each answer beside whether the year is a leap "
+            + "year. The year shown is the first it got wrong.",
+            "A leap-year test usually goes wrong at the centuries: 1900 and 2100, which 4 divides but are not leap years because "
+            + "100 divides them too; or 2000 and 2400, which are leap years after all because 400 divides them. A test that "
+            + "asks only of 4 gets the first wrong, and one that leaves out 400 the second.",
+            "Ask of 400 first, then of 100, then of 4: a year 400 divides is a leap year; otherwise one 100 divides is not; "
+            + "otherwise one 4 divides is. As one condition: 4 divides it, and either 100 does not or 400 does.",
+            ""),
+
+        GuideFor(["algorithm-factorial-wrong"], "A factorial that gives a wrong answer",
+            "The function is written the way a factorial is written - it multiplies a product by each number up to the one it is "
+            + "given, or gives back that number times itself called with one less - so FixFinder called it with every number "
+            + "from 1 to 10, and then 0, and set each answer beside that number's factorial. The number shown is the first it "
+            + "got wrong.",
+            "A factorial usually goes wrong at its ends: a loop that stops one short leaves out the number itself, so 5 gives "
+            + "24; a product that starts at 0 stays 0 whatever it is multiplied by; and a call of itself that stops only at 1 "
+            + "never stops when given 0, whose factorial is 1.",
+            "Start the product at 1 and multiply it by every number from 1 up to and including n - in Python, range(1, n + 1). "
+            + "Written as a function calling itself, give back 1 when n is 0 or 1, and n times the factorial of n - 1 otherwise.",
+            ""),
+
+        GuideFor(["algorithm-reversal-wrong"], "A reversal that does not reverse every list",
+            "The function is written the way a reversal is written - it swaps the items at the two ends of the list and moves "
+            + "in, or builds a new list from the last item back - so FixFinder called it with lists of its own, of odd and even "
+            + "lengths, and set what came back beside each list in the opposite order. The list shown is the shortest it got "
+            + "wrong.",
+            "A reversal in place goes wrong at its middle: a loop that runs all the way along swaps each pair twice, and puts "
+            + "the list back as it was; one that stops a step too soon leaves the middle pair of an even-length list as it was. "
+            + "One that builds a new list from the end goes wrong at position 0, when its loop stops before it.",
+            "Swap while the left position is before the right one - or for i in the first half only, len(items) // 2 times - "
+            + "and move both in after each swap. Going back from the end, run down to position 0 itself: in Python, "
+            + "range(len(items) - 1, -1, -1).",
+            ""),
+
+        GuideFor(["algorithm-gcd-wrong"], "A greatest common divisor that gives a wrong answer",
+            "The function is written the way Euclid's greatest common divisor is written - it takes the remainder of one number "
+            + "divided by the other until there is none - so FixFinder called it with pairs of numbers whose greatest common "
+            + "divisor is known, and set each answer beside it. The pair shown is the first it got wrong.",
+            "Euclid's algorithm goes wrong at its end: when the remainder is 0, the answer is the number that was divided by, "
+            + "not the remainder - giving back the second number once it has become 0 gives 0 every time. And a pair with 0 "
+            + "in it needs no division at all: every number divides 0, so the answer is the other number.",
+            "Replace the pair a and b by b and a % b while b is not 0, then give back a. Calling itself, give back a when b is "
+            + "0, and otherwise the greatest common divisor of b and a % b.",
+            ""),
+
+        GuideFor(["algorithm-fibonacci-wrong"], "Fibonacci numbers that are not the two before added",
+            "The function is written the way the Fibonacci numbers are written - it keeps two numbers and works out the next "
+            + "as their sum, or calls itself with one less and two less - so FixFinder called it with every number from 1 to "
+            + "10 and checked what every Fibonacci function gives, wherever it starts: each answer is the two before it added.",
+            "The two numbers have to be moved on together. Written one after the other - a = b, then b = a + b - the second line "
+            + "reads the a just changed, so b is added to itself and the numbers double: 1, 2, 4, 8. Starting from the wrong pair, "
+            + "or adding the wrong two, gives numbers that grow, but are not these.",
+            "Move both on at once, a, b = b, a + b - or keep the sum first: next = a + b, then a = b, then b = next. Calling "
+            + "itself, give back fib(n - 1) + fib(n - 2), with the first two numbers given back as they are.",
+            ""),
+
+        GuideFor(["algorithm-merge-wrong"], "A merge that loses or misplaces items",
+            "The function is written the way two lists in order are merged - it compares the item it is at in each and takes the "
+            + "smaller - so FixFinder called it with pairs of lists of its own, and set what came back beside every item of both, "
+            + "in order. The pair shown is the shortest it got wrong.",
+            "The loop runs while both lists have items left, so it stops as soon as one runs out - and whatever is left of the "
+            + "other has not been taken. Without a step after the loop to take it, those items are lost: [1, 3] and [2] give "
+            + "[1, 2], with no error to say so. Taking the larger item, or moving on in the wrong list, puts items out of order.",
+            "After the loop, add what is left of each list - in Python, result.extend(first[i:]) and result.extend(second[j:]) - "
+            + "and in the loop take the smaller item and move on in the list it came from.",
+            ""),
+
+        GuideFor(["algorithm-in-order-wrong"], "A test of order that gives a wrong answer",
+            "The function is written the way a test of whether a list is in order is written - it compares each item with the one "
+            + "after it and says no at the first pair out of order - so FixFinder called it with lists of its own and set each "
+            + "answer beside its own comparison applied to every pair. The list shown is the shortest it got wrong.",
+            "A test of order goes wrong at its ends: a loop that stops a step too soon never looks at the last pair, so a list "
+            + "out of order only there - [1, 2, 4, 3] - is said to be in order; and a yes given inside the loop, at the first "
+            + "pair in order, says so before the rest have been looked at.",
+            "Run the loop over every pair - in Python, for i in range(len(items) - 1) - say no at the first pair out of order, "
+            + "and say yes only after the loop.",
+            ""),
+
+        GuideFor(["algorithm-palindrome-wrong"], "A palindrome test that gives a wrong answer",
+            "The function is written the way a palindrome test is written - it compares the letters at the two ends of a word "
+            + "in towards its middle and says no at the first pair that differ - so FixFinder called it with words of its own "
+            + "and set each answer beside the word read backwards. The word shown is the shortest it got wrong.",
+            "A palindrome test goes wrong at its ends and its middle: the last letter is at length - 1, so one compared with "
+            + "the letter at length is past the end; a loop that stops a pair short never compares the pair next to the "
+            + "middle, so abca is said to be a palindrome; and a yes given inside the loop, at the first pair that matches, "
+            + "says so before the rest have been compared.",
+            "Compare word[i] with word[len(word) - 1 - i] for every i up to the middle - in Python, for i in "
+            + "range(len(word) // 2) - say no at the first pair that differ, and say yes only after the loop.",
+            ""),
+
+        GuideFor(["algorithm-round-trip-wrong"], "A pair of functions that do not undo each other",
+            "The two functions are named for one thing and its undoing - encrypt and decrypt, to_roman and from_roman - so "
+            + "FixFinder called the first with words or numbers of its own, and the second with what the first gave back, "
+            + "and set what came back beside what the first was given. The input shown is the first that did not come back.",
+            "Whatever the first gives back, the second has to turn back into what it was given, or what is saved or sent "
+            + "cannot be read again. A cipher goes wrong at the end of the alphabet: a letter shifted past z has to wrap "
+            + "round to a, and back; and in Java and JavaScript the remainder of a number below zero is below zero, so "
+            + "(c - 'a' - shift) % 26 can be -3 where Python's is 23.",
+            "Make the second do each step of the first backwards, in the opposite order, and wrap a remainder below zero "
+            + "round - in Java or JavaScript, ((c - 'a' - shift) % 26 + 26) % 26.",
+            ""),
+
+        GuideFor(["algorithm-search-wrong"], "A search that does not find every value",
+            "The function is written the way a search is written, so FixFinder called it with lists of its own, in order, "
+            + "and with every value in them and some that are not. For one of them it gave the wrong answer - not there when "
+            + "it was, there when it was not, or the position of another item - or the call stopped with an error.",
+            "A search that misses the first item, the last item or the only item of a list gives a wrong answer without "
+            + "any error, and the program goes on as if the value were missing.",
+            "Follow the list and the value shown through the loop by hand: check the loop's condition lets it look at every "
+            + "item it should - for a binary search, low <= high, with low = mid + 1 and high = mid - 1 - and that it gives up "
+            + "only after the loop has looked everywhere.",
+            ""),
+
         GuideFor(["analysis-repeated-search"], "Searching from the start on every pass",
             "Looking for something in a list, or in a piece of text, means going through it from the start until it "
             + "turns up. Doing that inside a loop means doing it again on every pass, so when the loop and the list both "
@@ -323,6 +503,7 @@ internal static class LogicGuides
         .. ElixirPatternGuides.All,
         .. FSharpPatternGuides.All,
         .. ErlangPatternGuides.All,
+        .. EveryLanguagePatternGuides.All,
         .. AnalysisGuides.All,
         .. Shared,
     ];

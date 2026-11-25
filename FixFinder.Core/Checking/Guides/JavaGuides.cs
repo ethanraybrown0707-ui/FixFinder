@@ -433,6 +433,22 @@ internal static class JavaGuides
             int average = count == 0 ? 0 : total / count;
             """),
 
+        Thrown("AssertionError",
+            "An assert statement - or a test library's check - found that what it checks is not true, and threw an AssertionError " +
+            "to stop there. Java checks assert statements only when it is started with -ea; FixFinder starts a program that has " +
+            "them that way, so its own checks count.",
+            "The program stops at the check. Started with plain java, without -ea, it would not check its asserts, and would carry " +
+            "on past this line with the value its own check says is wrong.",
+            "Find out why what it checks is not true - the check is doing its job - and fix the value that broke it. For java to " +
+            "check asserts as well, start it with java -ea, or put -ea in the VM options of the IDE's run settings.",
+            """
+            int total = 0;
+            for (int mark : marks) {
+                total += mark;
+            }
+            assert total >= 0 : "a total of marks is never negative";
+            """),
+
         Thrown("NumberFormatException",
             "Integer.parseInt turns text like \"42\" into a number. It can only do that when the text is exactly a whole number " +
             "- no spaces, no letters, no decimal point, and not empty.",

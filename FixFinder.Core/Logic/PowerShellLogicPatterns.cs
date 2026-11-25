@@ -30,7 +30,78 @@ public static partial class PowerShellLogicPatterns
         Pattern("logic-powershell-variable-in-single-quotes", VariableInSingleQuotes, Severity.Error),
         Pattern("logic-powershell-plus-outside-brackets", PlusOutsideBrackets, Severity.Error, Confidence.Certain),
         Pattern("logic-powershell-arguments-with-commas", ArgumentsWithCommas, Severity.Error, Confidence.Certain),
+        Pattern("logic-powershell-float-equality", FloatEquality, Severity.Suggestion, Confidence.Possible),
+        Pattern("logic-powershell-too-few-arguments", TooFewArguments),
     ];
+
+    /// <summary>One value given to a command: text in quotes, a $( ) and what is in it, or anything else up to a space.</summary>
+    [GeneratedRegex(@"""[^""]*""|'[^']*'|\$\([^)]*\)|[^\s()|;]+")]
+    private static partial Regex ValueGiven();
+
+    /// <summary>
+    /// A function of the script's own called with fewer values than it has parameters: PowerShell gives the rest $null and says
+    /// nothing, so Add 1 of function Add($a, $b) gives back 1. A call that names its values - Add -a 1 - and a function with a
+    /// parameter that has a default are left alone. The finding has no change: only the script's writer knows the missing value.
+    /// </summary>
+    private static IEnumerable<LogicFinding> TooFewArguments(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        var functions = masked.Select(line => FunctionWithParameters().Match(line)).Where(match => match.Success)
+            .Where(match => !match.Groups["parameters"].Value.Contains('='))
+            .GroupBy(match => match.Groups["name"].Value, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().Groups["parameters"].Value.Split(',', StringSplitOptions.TrimEntries), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (function, parameters) in functions)
+        {
+            // The function's name where a command starts: at the start of a line, after (, = or |.
+            var call = new Regex($@"(?:^|[(=|;])\s*{Regex.Escape(function)}(?<values>(?:\s+[^)|;]*)?)(?=\)|\||;|$)", RegexOptions.IgnoreCase);
+
+            for (var index = 0; index < masked.Count; index++)
+            {
+                if (FunctionWithParameters().IsMatch(masked[index]) || call.Match(masked[index]) is not { Success: true } called) continue;
+
+                var values = ValueGiven().Matches(called.Groups["values"].Value).Select(value => value.Value).ToList();
+                if (values.Any(value => value.StartsWith('-') && !Regex.IsMatch(value, @"^-\d")) || values.Any(value => value.Contains(','))) continue;
+                if (values.Count >= parameters.Length) continue;
+
+                var missing = parameters[values.Count..];
+                yield return new LogicFinding(id, index + 1,
+                    $"{function} takes {parameters.Length} values - {string.Join(", ", parameters)} - and is given {values.Count} here, so " +
+                    $"{string.Join(" and ", missing)} {(missing.Length == 1 ? "is" : "are")} $null inside it, and PowerShell says nothing",
+                    null);
+            }
+        }
+    }
+
+    /// <summary>A variable compared exactly with a decimal: <c>$total -eq 0.3</c>, <c>-ne</c>, and their c and i forms.</summary>
+    [GeneratedRegex(@"(?<name>\$[A-Za-z_]\w*)\s+(?<op>-[ci]?(?:eq|ne))\s+(?<value>\d*\.\d*[1-9]\d*)(?![\w.])", RegexOptions.IgnoreCase)]
+    private static partial Regex DecimalCompared();
+
+    /// <summary>
+    /// A variable given a decimal - $total = 0.1 + 0.2 - compared exactly with one: decimal arithmetic is rarely exact, and
+    /// $total -eq 0.3 is False, with nothing said. The change compares within a tiny tolerance with [math]::Abs.
+    /// </summary>
+    private static IEnumerable<LogicFinding> FloatEquality(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (DecimalCompared().Match(masked[index]) is not { Success: true } compared) continue;
+
+            var name = compared.Groups["name"].Value;
+            if (!masked.Take(index).Any(text => Regex.IsMatch(text, $@"^\s*{Regex.Escape(name)}\s*=\s*[^=].*\d\.\d", RegexOptions.IgnoreCase))) continue;
+
+            var value = compared.Groups["value"].Value;
+            var equal = compared.Groups["op"].Value.EndsWith("eq", StringComparison.OrdinalIgnoreCase);
+            var close = $"[math]::Abs({name} - {value}) {(equal ? "-lt" : "-ge")} 1e-9";
+            var line = source.Lines[index];
+
+            yield return new LogicFinding(id, index + 1,
+                $"`{name}` is a decimal number compared exactly with {value}, and decimal arithmetic is rarely exact - 0.1 + 0.2 is 0.30000000000000004",
+                LocalFix.ReplaceLine(id, $"Compare within a small tolerance: {close}",
+                    "Most decimal fractions cannot be stored exactly in binary, so sums and products land a tiny amount away from the value " +
+                    "you expect. Checking that the difference is tiny, rather than zero, compares them the way you meant.",
+                    source.Path, index + 1, line[..compared.Index] + close + line[(compared.Index + compared.Length)..]));
+        }
+    }
 
     /// <summary><c>function Get-Area($width, $height)</c> - a function of the script's own, with two parameters or more.</summary>
     [GeneratedRegex(@"^\s*function\s+(?<name>[\w-]+)\s*\((?<parameters>[^()]*,[^()]*)\)", RegexOptions.IgnoreCase)]

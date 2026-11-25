@@ -18,6 +18,13 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
     [GeneratedRegex(@"undefined reference to [`'‘](?<symbol>[^'`’]+)['’]\s*$")]
     private static partial Regex LibraryLinkerPattern();
 
+    /// <summary>
+    /// A library linked by name that is nowhere the linker looks: GNU ld's "cannot find -lname", lld's "unable to find
+    /// library -lname", and Apple ld's "library not found for -lname".
+    /// </summary>
+    [GeneratedRegex(@"(?:^|[\\/\s])(?:ld|ld\.exe|ld\.lld|ld64\.lld|ld\.bfd|ld\.gold):\s*(?:error:\s*)?(?:cannot find|unable to find library|library not found for)\s+-l(?<library>[^\s:]+)")]
+    private static partial Regex MissingLibraryPattern();
+
     [GeneratedRegex(@"^==\d+==\s*ERROR:\s*(?<tool>\w+Sanitizer):\s*(?<type>[\w \-]+?)(?:\s+on\s+.*)?$")]
     private static partial Regex SanitizerPattern();
 
@@ -60,7 +67,7 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
                 score += severity is "error" or "fatal error" ? 30 : 4;
             }
 
-            if (LinkerPattern().IsMatch(line) || LibraryLinkerPattern().IsMatch(line)) score += 30;
+            if (LinkerPattern().IsMatch(line) || LibraryLinkerPattern().IsMatch(line) || MissingLibraryPattern().IsMatch(line)) score += 30;
             if (TerminatePattern().IsMatch(line)) score += 60;
 
             foreach (var fatal in FatalRuntimeMessages)
@@ -157,6 +164,22 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
 
         for (var i = 0; i < lines.Count; i++)
         {
+            if (MissingLibraryPattern().Match(lines[i].Text) is { Success: true } missing)
+            {
+                errors.Add(new ParsedError
+                {
+                    LanguageId = LanguageId,
+                    Confidence = 80,
+                    RawText = lines[i].Text,
+                    FirstLineSequence = lines[i].Sequence,
+                    ExceptionType = "link error",
+                    Message = $"cannot find the library '{missing.Groups["library"].Value}' (-l{missing.Groups["library"].Value})",
+                    Frames = [],
+                });
+
+                continue;
+            }
+
             if (LinkerPattern().Match(lines[i].Text) is not { Success: true } && LibraryLinkerPattern().Match(lines[i].Text) is { Success: true } library)
             {
                 errors.Add(new ParsedError

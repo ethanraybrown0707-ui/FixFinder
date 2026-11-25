@@ -324,6 +324,21 @@ internal static class PythonPatternGuides
                 print("equal")
             """),
 
+        GuideFor(["logic-python-best-starts-at-zero"], "A largest or smallest started at 0",
+            "A loop that keeps the largest item of a list starts with some value to compare the first item against. Started at 0, " +
+            "it only works when some item is above 0: with temperatures of -5, -2 and -8 no item is bigger than 0, so it stays 0 - " +
+            "a temperature that was never in the list. A smallest started at 0 stays 0 the same way when every item is above 0.",
+            "The program prints or uses a value the list does not have, with no error to say so.",
+            "Start it at the list's first item, so it is one of the list's values from the start.",
+            """
+            temperatures = [-5, -2, -8]
+            highest = temperatures[0]
+            for t in temperatures:
+                if t > highest:
+                    highest = t
+            print(highest)
+            """),
+
         GuideFor(["logic-python-find-as-condition"], "A search's position used as true or false",
             "find gives a position: 0 when what it looks for is at the very start, and -1 when it is not there at all. As a " +
             "condition, 0 is False and -1 is True - so if name.find(\"A\"): is False for \"Ada\", and if name.find(\"z\"): is " +

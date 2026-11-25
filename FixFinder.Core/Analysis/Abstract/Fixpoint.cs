@@ -117,7 +117,14 @@ public sealed class Fixpoint
             if (_widenAt.Contains(block) && ++visits[block] > PassesBeforeWidening)
                 incoming = previous.Widen(previous.Join(incoming));
 
-            if (settled[block] && previous.SameAs(incoming)) continue;
+            if (settled[block] && previous.SameAs(incoming))
+            {
+                // What leaves a loop is worked out from each way into its test, not from the test's own state, so a way
+                // round that changed can change what leaves although the test's state - widened - did not. The code
+                // after the loop is looked at again, or it keeps what it saw before the loop could be left at all.
+                if (_waysIntoLoops.ContainsKey(block) && _graph.Blocks[block].Terminator is Branch { WhenFalse: var leaving }) pending.Add(leaving);
+                continue;
+            }
 
             settled[block] = true;
             _entry[block] = incoming;

@@ -16,9 +16,7 @@ public static class TokenStore
 {
     private static readonly byte[] Entropy = SHA256.HashData(Encoding.UTF8.GetBytes("FixFinder.v1"));
 
-    public static string FilePath { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "FixFinder", "credentials.dat");
+    public static string FilePath { get; } = Path.Combine(Engine.DataFolder.Root, "credentials.dat");
 
     public static bool IsSupported => OperatingSystem.IsWindows();
 

@@ -114,6 +114,10 @@ public class CodeReviewPatternTests : IDisposable
     [InlineData("logic-python-returns-nothing-sometimes", "def grade(s):\n    if s >= 50:\n        return 'pass'\n    else:\n        return 'fail'\n", null)]
     [InlineData("logic-python-returns-nothing-sometimes", "def grade(s):\n    if s >= 50:\n        return 'pass'\n    return 'fail'\n", null)]
     [InlineData("logic-python-returns-nothing-sometimes", "def show(s):\n    print(s)\n", null)]
+    // A return written over several lines: its closing bracket is not a statement of its own (QuixBugs' levenshtein, rpn_eval).
+    [InlineData("logic-python-returns-nothing-sometimes", "def edits(a, b):\n    if a == '' or b == '':\n        return len(a) or len(b)\n\n    elif a[0] == b[0]:\n        return edits(a[1:], b[1:])\n\n    else:\n        return 1 + min(\n            edits(a, b[1:]),\n            edits(a[1:], b)\n        )\n", null)]
+    [InlineData("logic-python-returns-nothing-sometimes", "def op(symbol, a, b):\n    return {\n        '+': lambda a, b: a + b,\n        '-': lambda a, b: a - b\n    }[symbol](a, b)\n", null)]
+    [InlineData("logic-python-returns-nothing-sometimes", "def grade(s):\n    if s >= 50:\n        return max(\n            s,\n            50\n        )\n    elif s >= 0:\n        print('fail')\n", Found)]
     [InlineData("logic-python-floor-division-average", "average = sum(xs) // len(xs)\n", "average = sum(xs) / len(xs)")]
     [InlineData("logic-python-floor-division-average", "def mean(xs):\n    return sum(xs) // len(xs)\n", "    return sum(xs) / len(xs)")]
     [InlineData("logic-python-floor-division-average", "pages = total // per_page\n", null)]
@@ -160,6 +164,11 @@ public class CodeReviewPatternTests : IDisposable
     [InlineData("logic-modified-while-looping", "App.java", "        for (String name : names) {\n            if (name.isEmpty()) {\n                names.remove(name);\n                break;\n            }\n        }\n", null)]
     [InlineData("logic-float-equality", "App.java", "        double total = 0.1 + 0.2;\n        if (total == 0.3) {\n", "        if (Math.abs(total - 0.3) < 1e-9) {")]
     [InlineData("logic-float-equality", "App.java", "        int total = 3;\n        if (total == 3) {\n", null)]
+    // C and C++ have fabs only with math.h or cmath; without it, the difference is checked from both sides.
+    [InlineData("logic-float-equality", "app.c", "#include <math.h>\n    double total = 0.1 + 0.2;\n    if (total == 0.3) {\n", "    if (fabs(total - 0.3) < 1e-9) {")]
+    [InlineData("logic-float-equality", "app.cpp", "#include <cmath>\n    double total = 0.1 + 0.2;\n    if (total != 0.3) {\n", "    if (std::fabs(total - 0.3) >= 1e-9) {")]
+    [InlineData("logic-float-equality", "app.c", "    double total = 0.1 + 0.2;\n    if (total == 0.3) {\n", "    if (total - 0.3 < 1e-9 && 0.3 - total < 1e-9) {")]
+    [InlineData("logic-float-equality", "app.c", "    double total = 0.1 + 0.2;\n    int same = ok && total == 0.3;\n", "    int same = ok && (total - 0.3 < 1e-9 && 0.3 - total < 1e-9);")]
     [InlineData("logic-java-scanner-skips-line", "App.java", "        Scanner in = new Scanner(System.in);\n        int age = in.nextInt();\n        String name = in.nextLine();\n", "        int age = in.nextInt();¦        in.nextLine();¦        String name = in.nextLine();")]
     [InlineData("logic-java-scanner-skips-line", "App.java", "        Scanner in = new Scanner(System.in);\n        String name = in.nextLine();\n        int age = in.nextInt();\n", null)]
     // The change made already: the rest of the number's line read and thrown away.

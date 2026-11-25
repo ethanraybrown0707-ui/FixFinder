@@ -1,5 +1,6 @@
 using FixFinder.Core.Checking;
 using FixFinder.Core.Engine;
+using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Reporting;
 
 namespace FixFinder.Tests;
@@ -102,6 +103,182 @@ public class ReportPageTests
         var finding = Found("';' expected") with { Explanation = "The beginner wording." };
 
         Assert.Contains("The beginner wording.", Page([finding]).ToHtml(), StringComparison.Ordinal);
+    }
+
+    /// <summary>The report's layout: summary, cause, most likely fix, the exact code, why FixFinder thinks this, then learn more.</summary>
+    [Fact]
+    public void AFindingReadsThisProgramFirstAndTheLanguageAfter()
+    {
+        var traced = Found("member is None on line 10 - it was made None on line 9", kind: FindingKind.Runtime) with
+        {
+            Found = "`member` became None on line 9.",
+            Explanation = "`member` became None on line 9. Square brackets pick one item out of a list.",
+            RootCause = new RootCause
+            {
+                Name = "member",
+                Value = "None",
+                CrashLine = 10,
+                IntroducedLine = 9,
+                IntroducedCode = "member = find_member(members, 2)",
+                Steps = ["`member` became None on line 9."],
+                Evidence = ["`member` held None when line 10 ran."],
+                LinesInvolved = [9],
+                WhatToDo = "Decide what `find_member` should give back.",
+            },
+        };
+
+        var html = Page([traced]).ToHtml();
+        var order = new[]
+        {
+            "<p class=\"summary\">Crash on line 10. Root cause introduced on line 9.</p>",
+            "<h4>Cause</h4>\n<p><code>member</code> became None on line 9.</p>",
+            "<h4>Most likely fix</h4>\n<p>Decide what <code>find_member</code> should give back.</p>",
+            "<h4>Why FixFinder thinks this</h4>",
+            "<li class=\"passed\">✓ <code>member</code> held None when line 10 ran.</li>",
+            "<h4 class=\"part\">Learn more</h4>",
+            "<h4>What this kind of mistake is</h4>\n<p>Square brackets pick one item out of a list.</p>",
+            "<h4>Why it matters</h4>",
+        };
+
+        var at = order.Select(part => html.IndexOf(part, StringComparison.Ordinal)).ToList();
+        Assert.All(at.Zip(order), each => Assert.True(each.First >= 0, $"not on the page: {each.Second}"));
+        Assert.Equal(at.OrderBy(index => index), at);
+    }
+
+    /// <summary>How it got there: each step of the way on a line of its own, each call further in than the one that made it, after the cause and before the fix.</summary>
+    [Fact]
+    public void HowItGotThereShowsEachCallFurtherIn()
+    {
+        var stopped = Found("member is None on line 17", kind: FindingKind.Runtime) with
+        {
+            Found = "`member` is None on line 17.",
+            RootCause = new RootCause
+            {
+                Name = "member",
+                Value = "None",
+                CrashLine = 17,
+                IntroducedLine = 21,
+                IntroducedCode = "member = load_member(3)",
+                Steps = ["`member` is None on line 17."],
+                Evidence = ["`member` held None when line 17 ran."],
+                LinesInvolved = [21],
+                WhatToDo = "Decide what `find_member` should give back.",
+                Path =
+                [
+                    new PathStep(0, "main", 21, "calls `load_member(3)`"),
+                    new PathStep(1, "load_member", 12, "calls `find_member(wanted)`"),
+                    new PathStep(2, "find_member", 8, "gives back None: `return None`"),
+                    new PathStep(1, "load_member", 13, "gives back None: `return found`"),
+                    new PathStep(0, "main", 22, "calls `print_member(member)`, giving `member` None"),
+                    new PathStep(1, "print_member", 17, "stops: it picks an item out of `member` with [ ]"),
+                ],
+            },
+        };
+
+        var html = Page([stopped]).ToHtml();
+        var order = new[]
+        {
+            "<h4>Cause</h4>",
+            "<h4>How it got there</h4>\n<ol class=\"path\">",
+            "<li style=\"margin-left: 0px\"><code>main()</code>, line 21 - calls <code>load_member(3)</code></li>",
+            "<li style=\"margin-left: 44px\"><code>find_member()</code>, line 8 - gives back None: <code>return None</code></li>",
+            "<li style=\"margin-left: 22px\"><code>print_member()</code>, line 17 - stops: it picks an item out of <code>member</code> with [ ]</li>",
+            "<h4>Most likely fix</h4>",
+        };
+
+        var at = order.Select(part => html.IndexOf(part, StringComparison.Ordinal)).ToList();
+        Assert.All(at.Zip(order), each => Assert.True(each.First >= 0, $"not on the page: {each.Second}"));
+        Assert.Equal(at.OrderBy(index => index), at);
+    }
+
+    /// <summary>The exact code to change as two columns: each line as it is beside the line as the fix leaves it, marked as well as coloured.</summary>
+    [Fact]
+    public void TheExactChangeIsTheCodeNowBesideTheCodeAfterTheFix()
+    {
+        var source = new SourceFile { Path = @"C:\work\scores.py", Lines = ["def average(values):", "    return sum(values) // len(values)"] };
+        var fix = new LocalFix
+        {
+            RuleId = "rule", Title = "Give an answer for an empty list", Explanation = "Explanation", File = @"C:\work\scores.py",
+            StartLine = 2, RemoveCount = 1, NewLines = ["    if len(values) == 0:", "        return 0", "    return sum(values) // len(values)"],
+        };
+        var stopped = Found("It crashed: ZeroDivisionError: integer division or modulo by zero", kind: FindingKind.Runtime) with
+        {
+            Fix = fix,
+            Change = CodeChange.From(fix, source),
+        };
+
+        var html = Page([stopped]).ToHtml();
+
+        Assert.Contains("<table class=\"change\">\n<tr><th>Current</th><th>Suggested</th></tr>\n" +
+                        "<tr><td class=\"context\"><span class=\"number\">   1  </span>def average(values):</td><td class=\"context\"><span class=\"number\">   1  </span>def average(values):</td></tr>\n" +
+                        "<tr><td class=\"removed\"><span class=\"number\">   2 -</span>    return sum(values) // len(values)</td><td class=\"added\"><span class=\"number\">   2 +</span>    if len(values) == 0:</td></tr>\n" +
+                        "<tr><td class=\"empty\"></td><td class=\"added\"><span class=\"number\">   3 +</span>        return 0</td></tr>\n",
+            html, StringComparison.Ordinal);
+    }
+
+    /// <summary>The decisions around the line it stopped on, after how it got there and before the fix.</summary>
+    [Fact]
+    public void WhyThisLineRanListsEachDecisionAfterTheWay()
+    {
+        // total_of([3, 4, 5]) stopped inside its while, as the run recorded it.
+        var stopped = Found("It crashed: IndexError: list index out of range", kind: FindingKind.Runtime) with
+        {
+            CallPath =
+            [
+                new PathStep(0, "<module>", 10, "calls `total_of([3, 4, 5])`"),
+                new PathStep(1, "total_of", 5, "stops on `total += prices[index]`"),
+            ],
+            Branches = [new BranchTaken(4, "while index <= len(prices):", BranchKind.While, true, [new HeldValue("index", "3"), new HeldValue("prices", "[3, 4, 5]")])],
+        };
+
+        var html = Page([stopped]).ToHtml();
+        var order = new[]
+        {
+            "<h4>How it got there</h4>",
+            "<h4>Why this line ran</h4>\n<ul class=\"branches\">",
+            "<li><code>while index &lt;= len(prices):</code> on line 4 was true - <code>index</code> was <code>3</code>, <code>prices</code> was <code>[3, 4, 5]</code></li>",
+            "<h4>Most likely fix</h4>",
+        };
+
+        var at = order.Select(part => html.IndexOf(part, StringComparison.Ordinal)).ToList();
+        Assert.All(at.Zip(order), each => Assert.True(each.First >= 0, $"not on the page: {each.Second}"));
+        Assert.Equal(at.OrderBy(index => index), at);
+    }
+
+    /// <summary>One fold to a variable, each value with the line that gave it - the one the program stopped on open - and no script.</summary>
+    [Fact]
+    public void EachVariableOfTheTimelineOpensToItsValues()
+    {
+        var stopped = Found("best is None on line 10", kind: FindingKind.Runtime) with
+        {
+            RootCause = new RootCause
+            {
+                Name = "best",
+                Value = "None",
+                CrashLine = 10,
+                IntroducedLine = 8,
+                IntroducedCode = "best = None",
+                Steps = ["`best` was set to None on line 8."],
+                Evidence = ["`best` held None when line 10 ran."],
+                LinesInvolved = [8],
+                WhatToDo = "Give `best` a value.",
+            },
+            Timeline =
+            [
+                new VariableHistory("total", [new VariableChange(2, "0", null), new VariableChange(5, "55", null)], Cut: false),
+                new VariableHistory("best", [new VariableChange(8, "None", null)], Cut: false),
+                new VariableHistory("people", [new VariableChange(null, "0", 8)], Cut: false),
+            ],
+        };
+
+        var html = Page([stopped]).ToHtml();
+
+        Assert.Contains("<h4>Variable timeline</h4>", html, StringComparison.Ordinal);
+        Assert.Contains("<details class=\"timeline\"><summary><code>total</code> - 2 values</summary>", html, StringComparison.Ordinal);
+        Assert.Contains("<tr><td>line 5</td><td><code>55</code></td></tr>", html, StringComparison.Ordinal);
+        Assert.Contains("<details class=\"timeline\" open><summary><code>best</code> - 1 value</summary>", html, StringComparison.Ordinal);
+        Assert.Contains("<tr><td>the call on line 8</td><td><code>0</code></td></tr>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script", html, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

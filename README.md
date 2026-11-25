@@ -4,8 +4,9 @@
 [![test count](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fethanraybrown0707-ui%2FFixFinder%2Fmain%2F.github%2Fbadges%2Ftests.json)](https://github.com/ethanraybrown0707-ui/FixFinder/actions/workflows/tests.yml)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 
-FixFinder checks a program's **syntax and logic at the same time** and explains every mistake it finds: how serious it
-is, how sure FixFinder is, the line it is on, what is wrong, why it matters, how to fix it, and the corrected code.
+FixFinder checks a program's **syntax and logic at the same time** and explains every mistake it finds, this program
+first: what happened and on which line, its cause in this program, the most likely fix and how sure FixFinder is of it,
+the exact code to change, why FixFinder thinks so - and only then what this kind of mistake is in general.
 
 There is no AI in it. Every check is ordinary code you can read: compiler and interpreter output, rules that work a fix
 out from an error message, patterns that recognise mistakes in the code itself, and a search that tries small changes
@@ -29,15 +30,24 @@ until the program prints what it should. FixFinder never changes your files.
 4. **Read the report.** It has two tabs, laid out the same way. **Problems** lists what is wrong, and its filters show
    every problem, or only the errors, warnings or suggestions. **Efficiency** lists ways the program could do less work
    as its data grows - none of them is a mistake. Every finding is explained for someone new to programming, in plain
-   words: what is wrong, why it matters and how to fix it, then **step by step** - the file and line to go to, with the
-   code on it, what happened there, making the change and checking it again. Where the language said something about it,
+   words, and always in the same order, this program first: the **summary**; the **cause**, in the program's own names
+   and lines; the **most likely fix**, with its **fix confidence** - how sure FixFinder is of the change, which is not
+   how sure it is of the finding; the exact code to change; **why FixFinder thinks this**, as a list of what it saw, each
+   marked - with, for a Python program that stopped, or a Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby,
+   Perl or Rust program that stopped on a missing value, a **variable timeline** of what each variable held, line by
+   line; and then
+   **Learn more** - what this kind of mistake is, why it matters, and **step by step**: the file and line to go to, with
+   the code on it, what happened there, making the change and checking it again. Where the language said something about it,
    **what it said** is shown as it said it, with how to read a message of that kind, part by part; the programming words
    the finding uses - index, exception, divisor - are each explained in a sentence; and **Next time** gives a habit that
    stops this kind of mistake happening again. The corrected code waits behind **Show the corrected code**, so
-   the fix can be tried first and compared after, with **Copy corrected code** beside it. Under it, the idea behind the
-   mistake is named and spelled out, with the finding's **problem code** - **Learn about this** opens it in
-   [FixFinder Learn](#fixfinder-learn). **More detail** holds why FixFinder is this sure, the lines that decide it, how
-   the fix was checked and where it came from. **Search online** looks the error up on GitHub and Stack Overflow, and
+   the fix can be tried first and compared after - the lines it changes side by side, as they are now beside as the fix
+   leaves them - with **Copy corrected code** beside it. That is **Learn**, beside the report's title; **Fix**, beside
+   it, shows the corrected code with each finding straight away, for when the fix is what is wanted. The explanations are
+   the same in both, a finding's own Show and Hide still work, and the choice is kept for next time. Under it, the idea
+   behind the mistake is named and spelled out, with the finding's **problem code** - **Learn about this** opens it in
+   [FixFinder Learn](#fixfinder-learn). **More detail** holds how it was found, the lines that decide it, how the fix
+   was checked and where it came from. **Search online** looks the error up on GitHub and Stack Overflow, and
    **Show in folder** opens the program's folder. **Copy report** copies every finding as plain text,
    and **Save report…** saves the whole report as a web page to keep, print or hand in: every finding with all the window
    shows of it, the notes, how the program was built and run, what it printed, and how this check compares with the last
@@ -50,6 +60,21 @@ until the program prints what it should. FixFinder never changes your files.
    by running the program, so when it did not run this time, those found last time are said not to have been looked
    for, rather than fixed. FixFinder's history keeps a fingerprint of each finding - a hash, never the code - so the fixed
    ones are named only for a check made since FixFinder was opened; after that, they are counted.
+   A finding still there says, when its mark is pointed at, how many checks in a row have found it, from the history -
+   *Found by each of the last 4 checks of this program, since 2 days ago* - a check in which the program did not run
+   neither counting for a crash nor ending its row; and once a program has been checked three times, the report gives
+   its problems over its last checks, up to eight, oldest first - *Problems in the last 5 checks of this program,
+   oldest first: 7, 5, 5, 3, 2.* The saved report says both.
+   A kind of mistake this check found that you keep making is said too - one made three times or more in the last 30
+   days, or in another program as well as this one - at most three, those made most often first, with the habit that
+   stops it and its lesson in FixFinder Learn: *Where a statement ends has turned up 4 times in this program in the
+   last 30 days. What stops it: End each statement with its semicolon as you finish typing it...* A mistake counts
+   once however many checks found it - the same unfixed `;` seen by five checks is one - while a `;` missed on another
+   line, or missed again after it was put right, is another. Small slips are each given their kind: an unclosed
+   bracket or quote, a missing `;`, `:` or `}`, a name in the wrong case or misspelt, `=` where `==` was meant. For
+   this the history keeps the idea behind each finding, as FixFinder Learn names it, never the finding or its code; a
+   mistake taught only as reading what went wrong is not said, and the saved report says it under *What keeps turning
+   up*.
 5. **Keep working on it.** Once a program chosen as a file has been checked, FixFinder reads its code again every time it
    is saved - the logic patterns and every analysis - and updates the report. It does not compile or run the program
    then, and the report says so; press **Check again** to do that. Code that does not read as its language at all is
@@ -78,14 +103,110 @@ not restored, as `bundle install` would put the gems into the Ruby on this compu
 crates or C#'s NuGet packages, as FixFinder builds Rust with `rustc` and C# with `csc`, which would not use them; nor
 Maven, Gradle or Composer projects, as none of those tools was here to try it with.
 
-**Try these inputs**, under the notes, shows what each way through a Python program does: for a program whose top-level
-code goes different ways on what is typed, FixFinder follows each way, works out answers that take it, and runs the
-program with each - with its own Python, in its own folder - showing what each printed, and what stopped it. For `score
-= int(input())` and `if score >= 70` ... `elif score >= 50` the answers are 70, 50 and 0, and the three runs printed A,
-B and Fail; for `total // people`, people 0 stopped with ZeroDivisionError and -1 printed a share. It is closed until
-opened, and in a saved report and on the command line too. It is only for a program that asks all its questions in
-straight-line top-level code - asked in a loop, a branch or a function, an answer could go to the wrong question - and
-it is left out when nothing typed decides the way, or every input printed the same.
+**Try these inputs**, under the notes, shows what each way through a program does: for a Python, Java or C# program
+whose first code - a Python or C# file's top-level code, a Java `main` or a C# `Main` - goes different ways on what is
+typed, FixFinder follows each way, works out answers that take it, and runs the program with each - as the check runs
+it, in its own folder, a Java or C# program once it has built - showing what each printed, and what stopped it. For
+`score = int(input())` and `if score >= 70` ... `elif score >= 50` the answers are 70, 50 and 0, and the three runs
+printed A, B and Fail; for `total // people`, people 0 stopped with ZeroDivisionError and -1 printed a share. A Java
+`main` that reads both with a Scanner's `nextInt()` and prints `total / people` gets the same two: 0 then 0 stopped with
+ArithmeticException: / by zero, and 0 then -1 printed `Each gets 0`. What is typed is what `input()`,
+`Console.ReadLine()` and a Scanner's or a reader's `next`, `nextInt`, `nextDouble`, `nextLine` or `readLine` give. It is
+closed until opened, and in a saved report and on the command line too. It is only for a program that asks all its
+questions in straight-line first code - asked in a loop, a branch or another function, an answer could go to the wrong
+question - and it is left out when nothing typed decides the way, or every input printed the same. A run Windows would
+not start, or one that asked for more than it was given, is left out as well.
+
+**What the code looks like**, under the notes too, says which algorithm a function is written as, read from the shape of
+its code in Python, Java, JavaScript, C#, C, C++ and Go: a binary search, a linear search, a bubble sort, a selection
+sort, an insertion sort, a search for the largest or the smallest item, a reversal, a prime test, a leap-year test, a
+factorial, Euclid's greatest common divisor, the Fibonacci numbers, a merge of two lists in order, a test of whether a
+list is in order or a palindrome test, each said in the code's own names - a Java list's `get`, `set` and `equals` and a
+string's `charAt` read as an array's indexing and `==`, and `Collections.swap` as a swap, and said as they are written -
+with what that kind of code needs or costs - *`find` looks like a binary search: it keeps a range from `low` to `high`,
+looks at its middle, `mid`, compares `items[mid]` with what it looks for, and moves `low` or `high` past the middle,
+halving the range each time round. A binary search looks at no more than about log2(n) items of n, but finds what it
+looks for only in a list that is in order.* It is closed until opened, and in a saved report and on the command line, as
+`algorithm:` lines, too. In a Python or JavaScript program each one is tried as well, from a copy of its file's
+definitions alone, and in a Java program a static method over an `int[]`, a `List<Integer>` or an `ArrayList<Integer>` -
+or a `String`, for a palindrome test - from a small class compiled beside a copy of its file: a sort is called with 10
+lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero - and has to give
+each back as the same items in order, smallest or largest first; a search is called with 6 lists in order - a linear
+search with one out of order too - and every value in them and some that are not, and has to find each that is there and
+none that is not, a binary search that misses being tried again on the lists in reverse order, which it may be written
+for; a search for the largest or smallest is called with 9 lists, never empty - all below zero, all above zero, with
+repeats - and has to give back each one's largest, or smallest, item; and a prime test is called with every number from
+0 to 30, and has to say rightly which are prime - its first wrong answer shown with why, *4 is 2 times 2* - and a
+leap-year test, one asking whether 4 divides a year and whether 100 or 400 does, or one named for leap years asking
+whether 4 does, is called, when every answer it gives back is a yes or a no, with 10 years - 2024, 2023, 2000, 1900,
+2100, 2400, 1996, 2019, 1600 and 1800 - and has to say rightly which are leap years: *100 divides 1900 and 400 does not,
+so it is not a leap year* - and a factorial, a function of one number that multiplies a product by each number up to it,
+or gives back the number times itself called with one less, is called with every number from 1 to 10, and then 0, and
+has to give back each one's factorial: *Called with 0, `factorial` stopped with RecursionError: maximum recursion depth
+exceeded - but 0 factorial is 1, the product of no numbers at all.* - and a reversal, in place by swapping the items at
+the two ends of a list and moving in, or into a new list given back, is called with 10 lists - empty, of one item, of
+odd and even lengths, with repeats and below zero - and has to give each back in the opposite order: *Called with [1,
+2], `reverse` gave back [1, 2] - reversed, it is [2, 1].* - and Euclid's greatest common divisor of two numbers, taking
+the remainder of one divided by the other until there is none, is called with 10 pairs - each way round, with a divisor
+in common and with none, the same number twice, and with 0 - and has to give back the greatest number dividing both:
+*Called with 12 and 18, `gcd` gave 0 - but the greatest number dividing both 12 and 18 is 6.* - and the Fibonacci
+numbers, kept as a pair whose sum is the next, or worked out by calling itself with one less and two less, are called
+with every number from 1 to 10 and, as courses start them in different places, have to start as one of them does - 0 and
+1, 1 and 1, or 1 and 2 - and give back each after as the two before it added: *Called with 3, `fib` gave 4 - but it gave
+1 for 1 and 2 for 2, and each Fibonacci number is the two before it added, so it should be 3.* - and a merge of two
+lists in order, which compares the item it is at in each and puts one in a result while both have items left, is called
+with 11 pairs of lists in order - empty, of one item, one running out before the other either way round, with the same
+item in both and below zero - and has to give back every item of both, in order: *Called with [1] and [], `merge` gave
+back [] - [1] is left out; merged in order, it is [1].* - and a test of whether a list is in order, comparing each item
+with the next and saying no at the first pair its comparison calls out of order, is called with 12 lists - empty, of one
+item, in order, and out of order at the start, in the middle and at the very end - and has to say which are in order by
+that comparison of its own, > for never going down, >= for always going up: *Called with [2, 1], `is_sorted` gave True -
+but in it 2 is followed by 1, and 2 > 1 is what its own test calls out of order.* - and a palindrome test, comparing the
+letters at the two ends of a word in towards its middle and saying no at the first pair that differ, is called with 12
+words - of one letter up to seven, palindromes of odd and even lengths, and words that differ at their ends or only in
+towards the middle, the empty word left out, as whether it is one is a course's choice - and has to say which read the
+same backwards: *Called with 'ab', `is_palindrome` gave True - but 'ab' backwards is 'ba', so it is not a palindrome.* A
+call stopped by a position past the end of the word is wrong too; one stopped any other way - code written for a list it
+adds to, given a word - is not judged. What happened is said under it, and a list it gets wrong is a finding, certain as
+it was seen, with the shortest such list and what came back - *Called with [2, 1], `bubble` gave back [2, 1], which is
+not in order - in order it is [1, 2].* A Python or Java call still going after 2 seconds ends the trial, as does a
+JavaScript run still going after 10, and nothing is said of it; a JavaScript ES module is not tried. Recognising is not
+checking: code that looks like a binary search can still be a wrong one, which is what the logic checks look for. Code
+of a similar shape that is none of them - a times table, a count, a square root found by halving, the days in February
+worked out by the leap-year rule, a product of a list's items, a power, a product of every second number, a partition
+swapping from both ends, a rotation, a copy shifted by one, a least common multiple, a total of remainders, a number cut
+down by remainders alone, a sum of digits, a running total, a number doubled, a sum counted down, the items two lists
+have in common, the larger of each pair, two lists zipped together, a test for an item the same as the next, the
+position of the first drop, a test of the gaps between items, a word compared with another backwards, a count of the
+pairs in a word that differ, a test that every letter is the same as the next - is recognised as nothing.
+
+**Pairs that undo each other** are said there too: two functions in the same file, and in the same class or both outside
+any, whose names are written there once and start with as many underscores, named for one thing and its undoing -
+`encrypt` and `decrypt`, `encode` and `decode`, `encipher` and `decipher`, `compress` and `decompress`, `serialize` and
+`deserialize`, `pack` and `unpack`, `escape` and `unescape`, `to_roman` and `from_roman`, or `int_to_roman` and
+`roman_to_int` - read from their names, not their code. In a Python or JavaScript program each pair is tried as well,
+from a copy of its file's definitions alone, and in a Java program a pair of static methods of one class taking and
+giving back an `int` or a `String`: the first is called with 9 words of FixFinder's own - lower-case letters alone, from
+one letter to the whole alphabet, one of them a letter twelve times over - each with the key 3 and then 25, or with the
+word key, when both take a key by the same name, or else with the words and then 10 numbers from 1 to 3999; and the
+second is called with what the first gave back, and has to give back what the first was given. A kind of input on which
+at least three came back, and none came back wrong, is the kind the pair is written for, and nothing is found; only when
+no kind came back right is the first input that came back wrong a finding, certain as it was seen: *Called with 'a' and
+3, `encrypt` gave back 'd', and given that and 3, `decrypt` gave back 'g' - not 'a', what `encrypt` was given.* An input
+the first stops on, or gives back nothing for - or anything but a word, a number or a list of them, as a pair written
+for objects or bytes does - is passed over, as is an answer of that kind, or one that differs only in its letters' case,
+and a pair named each for turning one thing into the other is tried either way round.
+
+**How the files use each other**, under the notes as well, is for a Python, JavaScript or TypeScript program of more
+than one file: a line for each of its own files that uses others of them - *`main.py` uses `grades.py`,
+`stats/__init__.py` and `stats/average.py`* - each named from the folder of the file checked. A file uses another when it
+names it in an import or a require that is code: `import grades`, or one inside a function, run when the function is
+called; `from stats import average`, which names the package's `__init__.py` and its module `average.py` both, as
+Python runs the one to load the other; `require("./grades")`; or `import { mean } from "./stats.ts"`. One in a comment,
+a docstring or text the program prints is not code, and is left out. Only the files the logic checks read are in it - at
+most 200 - and a library the program gets from pip or npm is none of its own files. It is closed until opened, and in a
+saved report and on the command line, as `uses:` lines, too. A program of one file, one none of whose files uses
+another, and a program in any other language have none.
 
 Pasted code is saved exactly as pasted, as a file of its own in a folder of its own in the temp folder - a Java class as
 the file of its name, under the folders of its `package` - and checked like any program, so the lines the report names are
@@ -121,7 +242,9 @@ keeps the usual time; **Stop** ends any run. How long a run is given is chosen i
 to ten minutes, one minute unless chosen - and every run follows it: the program's own, and each copy a change is tried
 in. Go and C# are built before they run - go build, dotnet build - and the build is given six minutes, as Go's first
 build compiles its standard library; the run is then given the time chosen, as every program's is, so a Go program that
-never finishes is stopped then, not six minutes on.
+never finishes is stopped then, not six minutes on. On Windows each program FixFinder starts - and whatever that program
+starts - is held in a Windows job of its own, so if FixFinder is closed, or stops, in the middle of a run, Windows ends
+the program too, rather than leaving one that never finishes running on its own.
 
 Settings keeps what most people never change - how long runs are given, programs with a window, and restoring
 libraries - under **Advanced**, which stays closed unless one of them has been changed from what FixFinder does by
@@ -339,7 +462,8 @@ folder, as `cargo run` runs it; anywhere else it is the chosen file, built as th
 files its `mod` lines bring in come with it, as rustc finds them. FixFinder builds with rustc and never runs cargo,
 which would download the crates `Cargo.toml` names, so those crates are named in how it ran, and code that uses them
 does not build here. rustc writes the program into FixFinder's build folder, built as cargo builds a debug build - with
-the checks that stop a program when a whole number overflows - and gives its messages as JSON, so each error and warning
+the checks that stop a program when a whole number overflows - and run with `RUST_BACKTRACE` set to 1, unless it is
+already set, so a panic lists the calls that led to it. rustc gives its messages as JSON, so each error and warning
 comes with the changes rustc itself suggests and how sure it is of each. One it marks as right as it stands becomes a
 fix - `let mut`, a missing `;`, `.clone()`, `.to_owned()` - and so does one it is not sure of only when it is the name
 it thinks was meant, the `use` line for the one item it found, or the `"{}"` a `println!` is missing; a change with a
@@ -735,7 +859,12 @@ on unless the project turns them off, and so does FixFinder. So a project with i
 `include` builds with its headers found, and a folder of exercises, each with its own `main`, builds the one the chosen
 file belongs to - and a header's fix is checked by building that program with the changed header. What only running
 something could say - `$(shell ...)`, `execute_process`, a header `configure_file` would write, a package `find_package`
-would look for - is not guessed at: how the program ran names it. A file the build file builds into more than one program
+would look for - is not guessed at: how the program ran names it. A library linked by name that is not on this computer -
+neither in a folder the build file names nor where gcc looks, which gcc says when asked - is left out rather than failing
+the whole build, and how it ran says so: TheAlgorithms' C searches link `function_timer`, a library the project builds in
+a folder of its own, and without that folder the three in its `pattern_search` folder, which use nothing from it, were said not to build, with no reason
+given. If a program does use a library left out, building it names each function of it that is missing; and when the
+linker cannot find a library at all, that is said in its own words, with what to do. A file the build file builds into more than one program
 is built as the one of them built by default - by plain `make`, or CMake's `all` - that is not a test, or else the one
 that is not a test, or else the one built by default. When two are as likely as each other, as for a helper two
 exercises share that are both built by default, it is built as if there were no build file, and how it ran says why; so
@@ -810,7 +939,11 @@ A class of **JUnit** 4 or 5 tests is run with JUnit itself, through a small laun
 when JUnit is among the project's libraries; JUnit 5's launcher, which a Maven or Gradle project seldom names, is taken
 from what Maven or Gradle has downloaded, when it is there. A test that fails is an error on the line of the test it
 failed on, in JUnit's own words, and names the line of the program's code the failure was thrown from when it came from
-there. When JUnit cannot run the tests, a note says what it is missing.
+there. When JUnit cannot run the tests, a note says what it is missing. JUnit's tests run with `java -ea`, as Maven,
+Gradle and the IDEs run tests, so the `assert` statements of the code they call are checked. So are a program's own: java
+checks none unless it is started with `-ea`, so a Java program whose `assert` is false would carry on past it with the
+wrong value - FixFinder starts a program that has assert statements with `-ea`, says so, and an `AssertionError` it
+stops with says why that matters.
 
 A Python file of **unittest** tests - one that imports unittest and has a class deriving `TestCase` - is run with unittest
 itself, test by test, through a small launcher of FixFinder's, whether or not the file calls `unittest.main()`. A test that
@@ -833,6 +966,174 @@ when a test stops pytest partway, with `pytest.exit()`, the summary says how man
 not start - an option in the project's settings from a plugin that is not installed, say - a note quotes what pytest said. pytest's cache goes in a folder of its own, removed afterwards, rather than into the project, and no
 compiled files are written beside the code. pytest is not part of Python, so when it is not installed for the Python the
 project runs with, a note says so, and the file is run as a program instead - FixFinder never installs it.
+
+A Python file of **doctests** - examples in its docstrings, `>>> double_eights(88)` above the answer `True` - is run with
+doctest itself, docstring by docstring, as `python -m doctest` runs it: imported by its own name from its own folder, so
+its `__main__` block does not run, and with the options its own `doctest.testmod(optionflags=...)` gives, such as
+`ELLIPSIS`. That is so when the examples are all the file runs: at its top it only defines functions, classes and names,
+with at most a `__main__` block that runs `doctest.testmod()`. A file that also does work of its own - calls `main()`,
+prints, reads what is typed in - is checked as the program it is. Each docstring is one doctest, and the first of its
+examples that does not give what it shows is an error on that example's own line: `double_eights(88): expected True, got
+False`, or, for an example that raised, what was raised and the line of the code it was raised on. A program that runs
+its doctests with `doctest.testmod()` and then does its own work carries on past an example that fails, as doctest only
+prints it: each example doctest printed as failed is an error on its own line all the same, the summary says the program
+ran to the end but some of its doctests' examples failed, and the traceback doctest prints for an example that raised is
+not taken for the program stopping - a crash after the doctests still is.
+
+A Python program that **checks itself with assert** - functions, then `assert average([60, 80]) == 70` lines at its top or
+in its `__main__` block, with only names given values and prints beside them, and nothing read from what is typed in - is
+run as running it would, except that each of those asserts is a check of its own, so the first that fails does not hide
+the ones after it. One that fails is an error on its own line saying what its left side was - `average([60, 80]) is
+46.666666666666664, not 70` - after the assert's own message when it has one; one whose code raised says what was raised
+and the line of the code it was raised on. The summary counts them: `2 of 3 asserts failed`. An assert inside a function
+is the function's own, and is left as it is. The search for the change that makes every assert hold never changes an
+assert, which is the test: a `return total / (len(marks) + 1)` was fixed by taking out the `+ 1`.
+
+A JavaScript or TypeScript file of tests for Node.js's own test runner, **node:test** - one that requires or imports
+`node:test`, with `test()`, or `it()` inside `describe()` - is run with `node --test`, test by test, through a reporter of
+FixFinder's; node:test is part of Node.js, so nothing is installed to run it. A test that fails is an error on the line of
+the test it failed on, in node:assert's own words - `Expected values to be strictly equal: '2:1' !== 'First'` - named
+with the `describe` blocks it is in, and an error thrown in the code it calls names the line it was thrown on. `node --test`
+ends with code 1 when a test fails, which is the failed test's finding, not one of its own. Jest's and Mocha's tests need
+their own packages, which a check never downloads.
+
+A JavaScript or TypeScript program that **checks itself with console.assert** runs as it is, with a watcher of FixFinder's
+loaded first (`node --require`) that says of each `console.assert` it reaches whether what it checks held, on that
+`console.assert`'s own line - and then lets it do what it does. `console.assert` only prints `Assertion failed` and carries
+on, without saying where, so a check that failed is easy to miss: here each is an error on its own line, with what it was
+given to say, and the summary counts them - `2 of 2 checks failed`. The search for the change that makes every check hold
+never changes a `console.assert`.
+
+Python tests in a **folder of their own** - `tests\test_grades.py` importing `grades` from the folder above, or from a `src`
+folder beside `tests` - run as `python -m pytest` and an IDE run them, from the project's folder: Python is told to look for
+the program's own modules where they are, in the folders above the test file and the `src` folder in each, at most three
+folders up and no further than the project's own folder (the first with a `.git`, `pyproject.toml`, `requirements.txt` or
+the like). A module Python has itself - `random`, or an installed package - is never taken from a folder above, so a
+`random.py` written for an earlier exercise there is left alone. When no settings file says where the project is, pytest is
+told the project's folder is the one with the `conftest.py` above the tests (its `--rootdir`), so that file's fixtures are
+there, as they are when pytest is started in the project's folder. A program that is not tests runs as `python scripts\run.py` runs it, looking for modules only in
+its own folder, so one that imports from the folder above fails here as it does there. When an import fails and the
+module is the program's own - a `grades.py` in an `app` folder Python was not told to look in - the finding says so, says
+where it is, and says how to have Python find it: moving it, running a program as a module (`python -m scripts.run`,
+started in the folder above), or, for pytest's tests, a `pythonpath` setting in `pytest.ini`. It never says to install a
+package of that name, which would be somebody else's code.
+
+A Python program's **imports that go round in a circle** are played out from the file that is run, as Python runs them,
+before the program is: Python's own parser lists what each of the program's files does at its top - each import, and
+each name a line there defines - and FixFinder follows those in order, starting each module the first time it is
+imported and the file that is run again, as a module of its own, when a module imports it by its own name. Where a
+`from ... import` asks a module that is still part way through for a name it defines further down, the program stops
+with ImportError, and the finding says where and why, with each import on the way: *shop.py line 1 imports prices;
+prices.py line 1 imports shop, which starts shop.py again from its top as a module of its own, since shop.py is the file
+being run; and shop.py line 1 asks prices for price_with_tax, which prices.py has not reached yet*. It says how to break
+the circle - what both modules need, in a module of its own that imports neither. Python 3.13 says only that it cannot
+import the name, and suggested renaming `prices.py` as though it had the name of a library; in a package it said the
+module was partially initialized, most likely due to a circular import, and both crashes are the same finding as the one
+worked out, certain once the run stops there. Nothing is said of a circle that works - a name defined before the import
+that starts it, an `import` whose names are only used inside functions, or a run guarded by `if __name__ ==
+"__main__":` - nor of a name no line defines, which is a mistake of another kind. A block whose running depends on
+values, such as an `if`, is not followed into, and every name it could define counts as defined. A circle of plain
+`import`s, whose module's names are then used at the top of another before it has them - AttributeError - is not looked
+for. Played out from each of the 152 files at the top of Python 3.13's own library, whose 1,093 modules hold 12 circles
+of imports, all of which work, it found nothing.
+
+A CommonJS JavaScript program's **requires that go round in a circle** are played out the same way, as Node runs them,
+over the top level of each of its own files as FixFinder's own reader reads it - each `require` and what is kept of it,
+each `module.exports = ...` and `exports.name = ...`. Node never starts the file that is run again, and does not stop: a
+module part way through hands over its exports object as it stands, so a `const { TAX_RATE } = require("./shop")` taken
+before `shop.js` exports `TAX_RATE` holds undefined for as long as the program runs, and a `const shop =
+require("./shop")` holds an object that `shop.js`'s later `module.exports = { ... }` leaves behind. When the file goes
+on to read the name, the finding says so, with each require on the way and the line that reads it - *TAX_RATE is
+undefined in prices.js for as long as the program runs, and its line 4 reads it*. Run, the program printed NaN and Node
+said only, as a warning, *Accessing non-existent property 'TAX_RATE' of module exports inside circular dependency*; that
+warning confirms the finding, certain. A module that exports a class - `module.exports = Library` - after it has
+required another that keeps its exports, as `const Library = require("./library")` does, leaves that other holding the
+exports object from before: *Library in book.js is the exports object library.js had before its line 14 replaces it*,
+and Node stopped on its `instanceof Library` with TypeError. Nothing is said when the names arrive in time -
+`exports.TAX_RATE = ...` puts the name in the object kept, and that program printed 12 - nor of a `require` inside the
+function that needs it, which runs once both modules have finished and printed 36, nor of a name taken and never used.
+ES modules, which bind their imports differently, and a `require` or an export inside a block or a function, are not
+played out. Played out from each of the 1,115 `.js` files of the npm that comes with Node 24, which hold 2 circles of
+requires among 8 files, it found one gap: were pacote's `lib/file.js` the file run, its `dir.js` would keep
+`FileFetcher` as the exports object from before `file.js` exports the class, and Node, run that way, said `Cannot read
+properties of undefined (reading 'packument')` where `dir.js` uses it. npm starts pacote from its `index.js`, from which
+the playing out found nothing, and loaded that way, the same call got past `FileFetcher.prototype`.
+
+A program's **functions written twice** - the same lines but for the names of their own parameters and variables, and
+their own names - are a suggestion on the second, naming the first: *`average_score` on line 10 is written the same as
+`average_mark` on line 1: the same 7 lines, but for the names of their own parameters and variables and their own
+names*. A mistake put right in one copy stays in the other. The lines are compared as they are written, with the
+comments left out and the text of the strings compared as well; a name after a dot, a keyword argument, a number and a
+function called stay as they are, so methods alike but for the field they read, and functions alike but for a word they
+print, a number or the function they call, are not copies. Only a function of 3 statements or more and 40 characters of
+code or more is compared, so getters and one-line returns are not, nor is one the reader could not read all of; and a
+copy in a file of the same name in another folder is another copy of the whole file - as a benchmark keeps its correct
+programs beside its broken ones - and is not counted. It is said in Python, Java, C#, JavaScript, Go and C, when one of
+the copies is in the file checked. Read a file at a time, Python 3.13's own library held 29 groups of copies in its
+1,093 files and the npm that comes with Node 4 in its 1,115; each one looked at was a true copy - `readable`, `writable`
+and `seekable` in `_pyio.py`, the same 4 lines each, and `xmlreader.py`'s `getNameByQName` and `getQNameByName`.
+
+When some of a file's JUnit, unittest, pytest, doctest or node:test tests fail, or a program's own asserts or console.asserts, FixFinder looks for **the change that makes every test pass**,
+in the code the tests call: the file their failures were raised through, or else the program's own module or class the
+test file imports - beside it, in a folder above it, or in a folder pytest's `pythonpath` setting names, or, for
+node:test, by a path of its own such as `../src/grades.ts`. It tries the same
+small changes as the search against an expected output, each in a private copy of the program - which holds the tests'
+folder, the program's, and pytest's settings and `conftest.py` files, so the tests run there as they do in the project -
+and runs the whole file of tests with each; a change counts only when every test that ran before runs again
+and passes, so one that passes the failing tests by breaking another, or by stopping the tests being found, does not. The
+functions the failing tests call, and the passing ones do not, are tried first - the Ochiai formula, given what each test
+calls - and of those, the line of the program's code each failure was raised on. Code with more than one mistake has no one change that makes
+every test pass, so a fix is built a change at a time: a one-line change that makes more of the failing tests pass, and
+none fail that passed, is built on, and given up for the next such change if it leads nowhere - up to three changes in one
+file. With a `Stack` whose `pop` gave back its first item and whose `peek` read one past the end, adding 1 to every item
+pushed made the `pop` test pass and led nowhere; FixFinder gave it up and found `pop()` and `len(self.items) - 1`, together
+one change, which every test passes. The fix goes on the first failed test, with how many tests pass with it and how many
+failed before, and each other failed test says the same change makes it pass too; the program's own files are never
+written to while changes are tried. Tests that pass a change can still be weak - two tests that only ever push two items
+pass `pop(1)` as well as `pop()` - so the finding says to check the change is the one meant. When no change of up to three
+lines makes every test pass, a note says how many were tried. A test that never finishes - a loop that never ends, so the
+run of the tests is stopped for time - counts as one that does not pass yet: QuixBugs' `bitcount`, whose `n ^= n - 1`
+never reaches 0, had no test fail and every run stopped, and the change found, `n &= n - 1`, lets every test finish and
+pass. The fix then goes on the run that was stopped. A file of doctests is the code its examples call as well as its
+tests, so changes are tried in its own code - never in a line of a docstring or a comment, which would change the tests
+rather than the code: a `double_eights` whose `n // 100` took two digits off at a time was fixed with `n // 10`, and a
+`Stack` whose `pop` and `peek` docstrings both failed was fixed a change at a time, as above. So was a JavaScript `Stack`
+tested with node:test in a `describe` block, whose `pop` used `shift()` and whose `peek` read
+`this.items[this.items.length]`: the change found is `pop()` and `this.items.length - 1`.
+
+Measured on the same 31 QuixBugs programs, each beside a unittest file of at most its first five test cases that the
+corrected version answers quickly, checked two at a time with 10 seconds a run: a fix every test passes was found for 29,
+and each of the 29 also gives the corrected version's answer on every one of the benchmark's cases for it. 25 make the
+program the same as the benchmark's corrected one; the other 4 do the same in another way. `sqrt` was not fixed, and
+`lis` passes all five of its tests.
+
+When every test in a file of JUnit, unittest, pytest or node:test tests passes, FixFinder **measures how much they
+check**: it makes small changes of the kinds a mistake makes to the code the tests call - for each line one can be made
+to, the likeliest kind of mistake there, such as a comparison off by one or the wrong operator - each on its own in a
+private copy, and runs the whole file of tests with each. A change some test fails with is one the tests catch; a change
+every test still passes with is a mistake there they would not notice, and is a suggestion on its line, saying what was
+changed. A note says how many changes were made and how many the tests caught; the first 5 they missed are listed. A
+change that does not build, or whose run is stopped for time, or after which fewer tests are found, shows nothing either
+way and is counted as neither. At most 24 changes are made, spread evenly over the lines, and no more are started once a
+minute has gone. A `grades.py` tested only with a mark of 85, one of 30 and the average of 2 and 4 was measured with 6
+changes, and its tests caught 3: they still passed with `score >= 70` made `score > 70`, the same with 50, and `/` made
+`//`. Tests of 70, 69, 50 and 49 and of an average of 1.5 caught all 6. Some changes make no difference to what the code
+does, and then no test could catch them, which the suggestion says. Doctests, and asserts in a program, are not
+measured, since they are written in the code a change is made to; nor are tests that fail, where the change that makes
+them pass comes first. The program's own files are never written to while the tests are measured.
+
+A program that **stops at an assert of its own** - a Java program's `assert`, run with `-ea`; a Node.js program's
+`assert.strictEqual` from `node:assert`; a C or C++ program's `assert` from `assert.h`; a Python program's `assert` in one
+that also reads what is typed in, so is not run as one that only checks itself - has the assert as the test of the code it
+checks. FixFinder tries the same small changes
+in a private copy, run as the program was - with what was typed in and its arguments - and takes the first after which it
+runs to the end without stopping with an error; the code the assert calls is tried first, and an assert or a comment is
+never changed. In `Marks.java`, whose `total` summed from index 1, the change found was `int i = 0`, and the same in
+JavaScript and in C. With only the one assert to go by, another change could also let it hold, so the finding says to
+check the change is the one meant. node:assert's `AssertionError`, whose message goes on over several lines before its
+stack, is read as the error it is - it was taken for a program that only ended with code 1 - and so is what `assert.h`
+prints, `Assertion failed: total(marks, 3) == 210, file marks.c, line 14` from Windows' C runtime or the GNU C library's
+`Assertion ... failed.`: the finding is on that line, saying what the assert checked.
 
 A **Jupyter notebook** (`.ipynb`) is checked as Jupyter's Run All runs it: its code cells in order, as one program, from the
 notebook's folder - so its own modules and data files are found - and with its kernel's Python, or its project's own, when
@@ -869,16 +1170,239 @@ changed.
 | **Severity** | **Error** - the program fails, or gives the wrong answer. **Warning** - it works, but not reliably, or not as intended. **Suggestion** - it works; this is a better way. |
 | **Confidence** | **Certain** - the compiler or a run proved it, or the code cannot mean anything else. **Likely** - true for nearly every program written this way. **Possible** - worth a look; it depends on what the program is for. Beside the word, where it comes from, read off what happened: *run reproduced it* - the analysis said this line breaks and a run with its values broke it; *seen when it ran* - the program crashed, or printed the wrong thing; *compiler said so*; *failing input worked out* - an input that makes it fail was worked out from the code, which can still hang on what is typed in; *values followed through the code*; or *pattern only* - the way the code is written. Its tooltip, and **More detail**, say it in a sentence. |
 | **Line** | The file and line it is on - for a notebook, the cell and the line in it. |
-| **Explanation** | What is wrong, in the program's own names, explained for someone new to programming, with the idea behind it spelled out in plain words. The finding starts with what was found in this program. |
+| **Summary** | For a crash traced back to where it began, the line it stopped on and the line the root cause was introduced on: *Crash on line 10. Root cause introduced on line 9.* |
+| **Cause** | Why it happened in this program, before anything about the language: what the check that found it said of this code, or what the compiler or the run said of this line - *The program stopped on line 10 with TypeError: ...* |
+| **How it got there** | For a program that stopped on a missing value - None in Python; null, undefined, nil or undef in Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby, Perl and Rust - the way it went, in the order the run took it: each call that made it or passed it on, the line that gave it back, the line that set it and the line that stopped, each call set further in than the one that made it - *`main()`, line 21 - calls `load_member(3)`*, then *`find_member()`, line 8 - gives back None: `return None`*. Every step is one the run, or the copy that followed the value, recorded. For any other crash whose trace lists more than one of the program's own lines - in Python, Java, JavaScript, TypeScript, C#, Go, Rust, C, C++, PHP, Dart, Lua, Ruby, Elixir, Erlang and F# - the calls the trace listed, outermost first: *The top level, line 17 - calls `main()`*, then each line that called the next function in, down to *`average()`, line 3 - stops on `return total // len(values)`*. |
+| **Why this line ran** | For a program that stopped with an error in its own code - in Python, Java, JavaScript, TypeScript, C#, Go, Rust, PHP, Dart, Lua, Ruby and Perl: each if, else if, else and while around the line it stopped on, outermost first, whether it was true or false the last time the call that stopped reached it, and what the names its condition reads held then - *`while index <= len(prices):` on line 4 was true - `index` was `3`, `prices` was `[3, 4, 5]`*. Every value is one a run recorded: Python's second run as that call reached the condition, the other languages' copy as described below. |
+| **Most likely fix** | What to change. Where a run traced the value a program stopped on, and the only change worked out makes the line skip that value, this is what the trace says to decide instead. |
+| **Fix confidence** | How sure FixFinder is of the fix, read off how far the change was taken: **Certain** - a copy with it printed what you said it should; **Likely** - a copy with it ran without the error, or to the end; **Possible** - it builds but was not run, it was not tried, or it only stops the failure, which leaves what should happen instead to you. |
+| **Why FixFinder thinks this** | What it saw, a line each, marked ✓ or ✕: what the run that traced the value recorded, or what stands behind the finding, then how each stage of trying the fix went. |
+| **Variable timeline** | For a Python program that stopped with an error in its own code, or a Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby, Perl or Rust program that stopped on a missing value: choose a variable, and see each value it held where the program stopped, in order, with the line that gave it - or, for a parameter, the call that did. Every value is one the program held. In Python a second run records them as it goes: each time a name was given a value, and each time a list, dictionary or set it held grew or shrank, up to the last 50 for each. In Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby, Perl and Rust the copy that follows the missing value back prints them: after each line that does nothing but give a variable a value, in the method or function it stopped in - or the file's top level - from the call that began it, up to 60 such lines and the last 50 values of each. In JavaScript and TypeScript a Map is shown as its keys and values and a Set as its items, which JSON alone would write as {}. In Go a pointer inside a list or a map is followed, where Go's own `%+v` writes its address, and nil is written as nil. In PHP a value is written as `json_encode` writes it, an object with its class's name first; in Dart as its `toString` writes it - an object of the program's own class as `Instance of 'Member'` - with text in quotes; and in Lua a table as its items and then its keys, `{apples = {count = 4}}`, where Lua's own `tostring` writes an address; in Ruby as `inspect` writes it, without an object's address; in Perl as `Data::Dumper` writes it, on one line, with a hash's keys in order; and in Rust with `{:?}`, or as `None`, `Some(..)` or `(its type has no Debug)` for a type without Debug. In a saved report, each variable is a fold to open. |
+| **What this kind of mistake is** | Under **Learn more**: the explanation for someone new to programming, with the idea behind it spelled out in plain words - after what happened in this program, never before it. |
 | **Why it matters** | What goes wrong because of it. |
-| **Suggested fix** | What to change. |
 | **To see it happen** | How to make it happen yourself, said only from what FixFinder ran or worked out: the call a run confirmed it with - call `take(flag=False)`; what the program's own run was given - run share.py typing `12` then `0`; the values worked out from the code that make it fail; or the language refusing the code before it starts. A finding nothing ran - a way of writing code that is usually a mistake - has none, rather than a guess. |
+| **Exact code to change** | When FixFinder worked the fix out, the lines it changes side by side: as they are now on the left, as the fix leaves them on the right, each line taken out beside the line put in its place, marked - and + as well as coloured, with the two lines either side to place it. A line put in with nothing to replace has an empty side beside it, and a line below the change has, on the right, the number it will have once the fix is in. The window shows it behind **Show the corrected code**, and a saved report as a table. |
 | **Example of corrected code** | Your own lines as they should be, when FixFinder worked the fix out and a compiler agreed with it - otherwise a small example of this kind of fix, labelled as not your code. Shown when **Show the corrected code** is pressed. |
 | **The idea** | The idea behind the mistake - dividing by zero, using a value that is not there, going one step too far - in plain words that hold in every language. |
 | **Problem code** | A code such as `FF-PY-DIVZERO-9PMEEB1` that opens the finding in FixFinder Learn. |
 
 When two checks find the same mistake - a compiler warning and a logic pattern, or a crash and the pattern that explains
 it - the report shows it once, at the surer of the two confidences.
+
+When a finding has a fix, its file is **read again with the fix made**, to see what else the fix removes: the same logic
+checks and analyses read a copy of the file with the fix in it and a copy as it is, each on its own, and every other
+finding they find in the copy as it is and no longer find with the fix is shown under the finding whose fix it is - *Its
+fix removes the problem on line 5 too* - and itself says *Fixing the problem on line 4 removes this one too*. In a Java
+`total` whose loop ran while `index <= marks.length`, the loop's fix, `index < marks.length`, removed the position asked
+for on line 5 that does not exist, and left the division by zero on line 11, which it does not change; in C# and in Go,
+the same loop's fix removed the position it asked for in the same way. A Python binary search, and a Java one, that set
+`low = mid` were found to have a loop that can come round with nothing changed, on the `while` line above it, and the
+search's fix, `low = mid + 1`, removed it too. Among 397 open-source programs checked without being run, whose reports
+held a fix 222 times, one fix removed another finding: in QuixBugs' `PASCAL.java`, whose loop over a row stops at `c <
+r`, the benchmark's own correction, `c < r+1`, removes the `if (c < r)` on line 29 that is always true. Up to 3 fixes a
+check are followed this way, and nothing is run to do it. A finding on a line the fix changes is never said to be
+removed, nor one found only through another of the program's files, and a fix a copy showed does not work, or after
+which the file cannot be read as well as before, removes nothing.
+
+### Where a missing value came from
+
+A program stops on the line that uses a missing value, which is seldom the line that is wrong. When a Python program
+stops on None - `'NoneType' object is not subscriptable`, `has no attribute`, `is not iterable`, `unsupported operand`
+and the rest - FixFinder runs it a second time, recording as it runs what each name on that line held, which line last
+changed it, which calls to the program's own functions gave back None, and how many times each line ran. From that run
+alone it says which name held None, the line that gave it None - the root cause - and why: a function that reached its
+end without a return, or whose `return None` ran because the `if` above the other return was never true; a name set to
+None that the only line that would have changed it never reached; a dictionary's `get` for a key it does not have; a
+parameter the call gave None. When the second run does not stop with the same error on the same line, nothing is said.
+
+A None that came through more than one of the program's functions is followed back through each of them, from that same
+run. A parameter the caller gave as one of its own names is followed to the one line of the caller that set that name and
+ran - not when two such lines ran, where which one gave the None would be a guess - and a function whose return gave back
+another of its calls' None, `return found` after `found = find_member(wanted)` or `return lookup(table, key)` itself, is
+followed into that call, until the line that made the None. The root cause is then the line where the None reached the
+name that stopped it: `member = load_member(3)` below. The finding shows How it got there - each step of the way, in the
+order the run took it, each call set further in than the one that made it:
+
+```
+main(), line 21 - calls load_member(3)
+    load_member(), line 12 - calls find_member(wanted)
+        find_member(), line 8 - gives back None: return None
+    load_member(), line 12 - sets found to None
+    load_member(), line 13 - gives back None: return found
+main(), line 21 - sets member to None
+main(), line 22 - calls print_member(member), giving member None
+    print_member(), line 17 - stops: it picks an item out of member with [ ]
+```
+
+What to do is then said of the function that made the None - `find_member`, on line 8. The languages below are
+followed through more than one function too, and show the way the same way.
+
+The same second run says why the line it stopped on ran. The ifs, elifs, elses and whiles around that line, in the
+function it is in, are read from the indentation, as Python reads it; as the call that stopped reaches each of their
+lines, the run records what that call's variables held, before the condition is worked out. The line running says the
+rest: the branch it is in was true, and every condition above that branch in the same chain was false - so an else ran
+because each if and elif above it was false. Each is shown with the names its condition reads, not a function it calls
+or an attribute after a dot - *`if temperature < 0:` on line 2 was false - `temperature` was `21`* - and an object Python
+writes only as its address is left out. What is recorded is kept for each call on its own, so in a function that calls
+itself it is the call that stopped that is shown: in `depth(3, [0, 1])`, which stops on `return seen[n]` in the call
+given 2, `if n > 0:` was true with `n` as `2`, though the call given 0 reached that line after it. A header written over
+more than one line, and the else of a for, a while or a try, are left out with their chain, as what was decided there
+is not read here; and when the run does not record the call reaching one of the conditions, none is shown.
+
+Java, JavaScript, TypeScript, C#, Go, Rust, PHP, Dart, Lua, Ruby and Perl say it too, whatever the error, from a copy of
+the program that prints what each condition read. Their ifs, else ifs, elses and whiles are read from the blocks: a
+brace on the header's line or alone on the next, or, in Ruby and Lua, the block to its end, split where an elsif or else
+of its own starts - one inside a block of the branch is that block's. Go's while is a for with a condition alone,
+`for index <= len(prices) {`. An if chain's names are printed just before its if, which runs each time the chain is
+worked out, so what they held is what every condition of the chain read; a while's are printed at the start of its body,
+which runs each time its condition was true. A print can only name what the program has there, so only the function's
+parameters and the variables a line of it above gave a value are printed - in Perl, a parameter copied out of `@_` into
+an array is not one - and a while whose condition changes what it reads, `while (index++ < count)`, is left out, as its
+body sees its names after the change. The copy has to stop with the same error on the same line, in the call the
+function began last; as what a function that calls itself printed cannot be told apart from call to call, nothing is
+said of one in these languages. For `describe(21, readings)`, which passes over an if and an else if into the else,
+where a while reads one item past the end, each language said the if and the else if were false with `temperature` as
+21, that the else ran, and that the while was true with the index as 3 - 4 in Lua, which counts from 1.
+
+A Java program that stops with a NullPointerException is followed the same way. Java's own message names what was null -
+FixFinder builds Java with `-g`, so it gives the variable's name - and a copy of the program is run with a line printed
+wherever the null could have come from: after each line that sets that variable, as each of the program's methods
+begins, and at each of their returns and `if`s - every one put on the line it is about, so no line moves. From what the
+copy printed, the finding says the line that gave the variable null and why: a method whose `return null;` ran because
+the `if` above its other return was never true, with what the method was called with; a variable set to null that the
+only line that would have changed it never reached; a Map's `get`, where the file declares it a Map; a parameter the
+call gave null, and which method gave the call its null; and a method's null used straight away, as in
+`find(names, "c").length()`. Only a copy that stops with the same NullPointerException on the same line is read.
+
+A JavaScript program that stops on undefined or null - reading or setting a property of it, taking a property out of it
+with `const { age } = person`, or going through it with `for ... of` - is followed with a copy in the same way. Node's
+message says which property and which of undefined and null, and the column of its trace says what the property was read
+from: a variable, or what a call gave back, as in `find(names, "c").length`. The finding then says, from what the copy
+printed, the line that gave it that value and why: a function that reached its end without a return, or whose
+`return null;` ran because the `if` above its other return was never true, with what it was called with; `let best;`
+that the only line that would have given it a value never reached; an array's `find`, or a Map's `get`, where the file
+declares the array or the Map; and a parameter the call gave it - written with semicolons or without. A TypeScript
+program is followed the same way, as Node runs it with its types taken out: `found!.name` is read as reading name from
+`found`, and `const books: Book[] = [...]` declares `books` an array.
+
+A C# program that stops with a NullReferenceException is followed with a copy too. .NET's message names nothing, so what
+was null is read from the line it stopped on: the one variable it reads a member or an item from that the program sets or
+is given as a parameter - when there is more than one, nothing is said. The finding then says the line that gave it null
+and why: a method whose `return null;` ran because the `if` above its other return was never true, with what it was
+called with; a variable set to null that the only line that would have changed it never reached; `FirstOrDefault`; and a
+parameter the call gave null, and which method gave the call its null.
+
+A Go program that stops with a nil pointer dereference is followed as a C# program is. Go's panic names nothing and gives
+no column, so what was nil is the one variable the line reads a field through, or calls a method on, that the program
+sets or is given as a parameter. The finding then says the line that gave it nil and why: a function whose `return nil`
+ran because the `if` above its other return was never true, with what it was called with; `var best *Score` that the
+only line setting it never reached; a map indexed with a key it does not have, where the file declares the map; and a
+parameter the call gave nil. The copy imports what its prints need on the `package` line, under names of its own, so no
+line moves and a file that imports `fmt` itself still builds. A nil map that is written to has a change of its own: make
+the map with `make`.
+
+A PHP program that stops with `Call to a member function describe() on null`, or `Attempt to assign property "balance"
+on null`, is followed the same way. PHP's message names the method or the property, so what held null is the variable the
+line calls it on or sets it on - or the program's own function whose result the line used straight away, as in
+`lookUp($items, "milk")->priced()`. The finding then says the line that gave it null and why: a function whose
+`return null;` ran because the `if` above its other return was never true, with what it was called with; `$best = null;`
+that the only line setting it never reached; `array_find`, which gives back null when no item passes its test; and a
+parameter the call gave null. Reading a property of null is only a warning in PHP 8 - the program prints it and carries
+on - so it is not followed.
+
+A Dart program that stops with `Null check operator used on a null value` is followed the same way. Dart's trace gives
+the column of the `!` that met null, so what was null is the name just before it - `member!.age` - or the program's own
+function whose result it follows, as in `lookUp(items, 'milk')!.price`. The finding then says the line that gave it null
+and why: a function whose `return null;` ran because the `if` above its other return was never true, with what it was
+called with; `Score? best;` that the only line setting it never reached; a Map's `[]` for a key it does not have, where
+the file declares the Map; `int.tryParse` for text that is not a number; and a parameter the call gave null.
+
+A Lua program that stops on nil - `attempt to index a nil value (local 'member')`, and the same for arithmetic, joining
+to text with `..` and taking a length with `#` - is followed too. Lua's message names the variable, so it is read from
+there; a field, `(field 'age')`, is part of a table and is not followed. Lua's blocks end with `end`, which the copy
+keeps to: a print goes after a function's header, a return is wrapped as `do ... return x end`, and the function that
+writes a value comes before the first line, so it is there before any of the program runs. The finding then says the
+line that gave the variable nil and why: a function whose `return nil` ran, or that reached its end without a return,
+because the `if` above its other return was never true, with what it was called with; `local best` that the only line
+setting it never reached; a table indexed with a key it does not have, where the file builds the table; `tonumber`,
+`string.match` and `string.find`, which give back nil when there is nothing; and a parameter the call gave nil.
+
+A Ruby program that stops with ``undefined method `age' for nil`` is followed as a Lua program is, its blocks ending
+with `end`. Ruby's message names the method, so what held nil is the variable the line calls it on - read from the line
+as written, as the call may be inside text, `"#{member.age}"` - or the program's own method whose result it is called on
+straight away. An `if` written after a statement - `return member if member.id == id` - decides that statement and
+opens no block, and the copy keeps it outside its print: `begin ... return member end if member.id == id`. The finding
+then says the line that gave the variable nil and why: a method whose `return nil` ran because the `if` above its other
+return was never true, with what it was called with; `best = nil` that the only line setting it never reached; `find`,
+which gives back nil when no item passes its test; a Hash indexed with a key it does not have, where the file builds the
+Hash; and a parameter the call gave nil. A Ruby method also gives back its last line without saying `return`, so one
+that ended that way is said only to have given back nil.
+
+A Perl program that stops on undef - ``Can't call method "describe" on an undefined value``, or `Can't use an undefined
+value as an ARRAY reference` or a HASH one - is followed too. Perl's message names the method, so what held undef is the
+variable the line calls it on, `$member->describe()`, or uses as a list or a hash, `@$chosen` - or the program's own sub
+whose result it is called on straight away. A sub's parameters are the names its first line copies out of `@_`, and the
+copy prints them from `$_[0]`, `$_[1]` and on as the sub begins. The finding then says the line that gave the variable
+undef and why: a sub whose `return undef;` ran because the `if` above its other return was never true, with what it was
+called with; `my $best;` that the only line setting it never reached; and a hash looked up by a key it does not have,
+where the file fills the hash. Perl's `die` gives no trace of the calls that led to it, so a parameter the call gave undef
+is not followed, and a sub that ended without a `return` is said only to have given back undef.
+
+A Rust program that panics with ``called `Option::unwrap()` on a `None` value`` is followed too. Rust's panic gives the
+column of the `unwrap`, so what held None is the name just before its dot - `member.unwrap()` - or the program's own
+function whose result it was called on, as in `look_up(&items, "milk").unwrap()`. The copy writes a value with `{:?}`
+when its type has Debug, an `Option` of a type without it as `None` or `Some(..)`, and anything else without it as
+`(its type has no Debug)`, so the copy builds whatever the program's types are; and a lifetime's quote, `&'a str`, is not
+read as the start of text. The finding then says the line that gave the variable None and why: a function whose
+`return None;` ran because the `if` above its other return was never true, with what it was called with;
+`let mut best = None;` that the only line setting it never reached; and `find`, `position`, `get`, `first`, `last`,
+`pop`, `max` and `min`, which give back None when there is nothing to give. The copy does not read the calls a panic's
+backtrace names, so a parameter the call gave None is not followed.
+
+When the function that gave the missing value gives back a variable - `return best;` - the copy also prints what each
+line of the function setting that variable gave it, so the finding goes on to say which line gave it the missing value
+in that call and which lines that would have changed it never ran - in Java, JavaScript, TypeScript, C#, Go, PHP, Dart,
+Lua, Ruby, Perl and Rust.
+Each of the copy's prints goes before a comment its line ends with, where it would not run.
+
+In Java, JavaScript, TypeScript and C#, a method called on an object - `shelf.longest()` - is followed into the method
+when the file declares the object as one of its own classes, as `Shelf shelf = new Shelf();` does, and the method is in
+that class; a method of a list, a Map or any class the file does not have is not. The call has to be all the line gives:
+in `lettersOf("tea").get("last")` the value is get's, not lettersOf's.
+
+In each of these languages, as in Python, the missing value is followed through more than one function, from what the
+copy printed: a parameter the call gave one of the caller's own variables is followed to the last line of the caller
+that set that variable before the call - the copy prints what each line setting it gave it - and a function whose return
+gave back another of its calls' value, `return found;` after `found = findMember(wanted);` or `return lookup(table, key);`
+itself, is followed into that call, past the calls made inside it, up to 8 calls deep. The finding then shows How it got
+there, as a Python one does. Perl's die names only the line it stopped on, not the call that led there, and the copy
+that follows Rust's None does not read the calls a panic's backtrace names, so a parameter in Perl or Rust is not followed
+back to its caller.
+
+A crash with no missing value to follow shows How it got there too, read from the calls its own trace lists: the
+program's outermost call first, then each line that called the next function in, down to the line it stopped on -
+*The top level, line 17 - calls `main()`*, *`main()`, line 13 - calls `load_average("week one")`*,
+*`load_average()`, line 9 - calls `average(scores)`*, *`average()`, line 3 - stops on `return total // len(values)`*.
+Only the program's own lines are shown, each one the trace named; lines of the language's own code or a library's are
+passed over. A call the trace leaves out is never filled in: Lua, Elixir and Erlang drop a function that ended by calling
+another, so the step before it says what its line ran and which function the trace went to next - *runs
+`local result = loadAverage("week one")`, which leads to `average()`*. A function calling itself from one line is one
+step that says how many of those calls the trace lists - or, where Python lists three and says the line was repeated
+more times, how many there were. A path through more than one of the program's files names the file of each step, and
+the 12 steps nearest the line it stopped on are shown at most. PHP names, at each line of its trace, the function called
+there rather than the one the line is in, so a line's function is read from the line the trace lists next. In C and C++
+the calls are the ones AddressSanitizer lists, when a crash that said nothing is run again in its build. This is shown in
+Python, Java, JavaScript, TypeScript, C#, Go, Rust, C, C++, PHP, Dart, Lua, Ruby, Elixir, Erlang and F#. Perl's die and
+PowerShell's error name one line only, and the backtrace gfortran prints here gives addresses and no lines, so a Perl,
+PowerShell or Fortran crash shows none.
+
+A crash traced this way follows from the logic check that names the same function or line, and is shown under it.
+Where the line it stopped on is a statement of its own, the change that runs it only when the value is there is offered -
+`if member is not None:` in Python, `if (member != null) { ... }` in Java, JavaScript, TypeScript, C# and Dart,
+`if member != nil { ... }` in Go, `if ($member !== null) { ... }` in PHP, `if member ~= nil then ... end` in Lua and
+`unless member.nil? ... end` in Ruby, `if (defined $member) { ... }` in Perl and `if member.is_some() { ... }` in Rust,
+indented as the file indents - kept only when a copy with it runs without the error, and marked as only stopping the
+failure.
 
 ## FixFinder Learn
 
@@ -921,6 +1445,18 @@ Learn deletes them all; a code still opens its lesson afterwards, without your o
 opens the lesson and says that the problem itself is not kept here. The questions answered right are kept in
 `%LOCALAPPDATA%\FixFinder\learn\progress.json`. Nothing is sent anywhere.
 
+The lessons of a language are listed with those on the kinds of mistake FixFinder found in your programs of that
+language in the last 30 days first, the most often first, then those it found only in the 30 days before, each with how
+often in both - *Brackets and quotes that are never closed - once lately, 4 times in the 30 days before*, or *none
+lately, twice in the 30 days before* for a kind no longer made - read from the history of checks the way the main window
+counts them: each mistake once, however many checks found it, and one left as it was through both counted in each.
+FixFinder Learn only reads the history.
+
+Everything FixFinder keeps on this computer - the history of checks, the preferences, these problems and this progress,
+its builds, its cache and a saved sign-in - is in `%LOCALAPPDATA%\FixFinder`, or in the folder the
+`FIXFINDER_DATA_FOLDER` environment variable names when it is set: a way to try FixFinder and FixFinder Learn without
+the checks made going into your own history and list of problems.
+
 ## How the two checks work
 
 The **syntax check** asks the language's own tools for every error and warning, then runs the program to catch the error
@@ -954,7 +1490,8 @@ it failed - a traceback, an uncaught exception, a panic, the java launcher unabl
 only a crash gives. A program that ends itself with a failing exit code - `System.exit(1)` after printing how to run
 it, say - is reported as possibly wrong, quoting the last thing it printed, since that may be just what it should do
 without an argument or a file. An exception printed on the way - `printStackTrace` in a `catch` - is a warning when the
-program still finishes. A Java class with no main method has nothing to run, and a note says so. When Windows refuses to
+program still finishes. A Java class with no main method has nothing to run, and a note says so - as does a Go file of a
+package other than `main`, such as one of TheAlgorithms' Go searches, whose `go run` refusal was once reported as a crash. When Windows refuses to
 start a program that has just been built, and says so, a note says that too rather than blaming the code. A program that
 stops because a connection it made was refused - its database or server not running - is reported as that, in any
 language, from what its runtime said: the address, when the error names one, and what usually listens on that port, such
@@ -1178,7 +1715,15 @@ Lua, Perl, PowerShell, Fortran, F#, OCaml, Elixir's `cond` and Erlang's `if`: ru
 not B, with nothing said by any compiler or warning flag. A condition read is one comparison of a name with a number,
 two joined by `and`, or Python's `50 <= score < 70`, and the values each lets through are worked out; when every branch
 compares the same name the same way, the change puts the branches in order, the strictest first, and each language's
-changed program printed B. A count down written the way that counts up runs no times at all - `range(10, 0)` in Python,
+changed program printed B. A ladder whose rungs each take in their own number - `mark >= 70`, `mark >= 60`, `mark >= 50` -
+but for one that leaves its number to the rung after, `mark > 40`, or the other way round, is a warning that it may be a
+mistake, in the same languages, with the change that writes that rung like the others: run with a mark of 40, the
+programs in Python, Java, C, C++, C#, JavaScript, TypeScript, Dart, PHP, Go, Rust, Ruby, Lua, Perl, PowerShell,
+Fortran, F#, Elixir and Erlang each printed F, where 50 is given C, and with the change, `mark >= 40`, D; Scala's and
+OCaml's are found by the tests, and were not run here. It is said only of three rungs or more comparing one name the
+same way round, in order, one alone different, and only when that rung's number is on the others' step - 40 among 70,
+60 and 50 - as `mark > 39` among them is `mark >= 40` for whole marks, written another way. Python 3.13's own library,
+the npm that comes with Node and the open-source corpus held none. A count down written the way that counts up runs no times at all - `range(10, 0)` in Python,
 `(10..1).each` in Ruby, `10..0` in Rust, `10 to 1` in Scala, `for i = 10, 1` in Lua, `10 .. 1` and `for i = 10 to 1` in
 F#, `(10..1)` in Perl, `do i = 10, 1` in Fortran, and `for i = 10 to 1` in OCaml - and each counted 0; the change counts
 down, `range(10, 0, -1)`, `10.downto(1)`, `(1..=10).rev()`, `by -1`, `, -1`, `downto` or `reverse(1..10)`. `gfortran
@@ -1226,11 +1771,43 @@ unused; that warning and the check are one finding, whose change names it `add_t
 1.`. A test the module exports is found without a change. Elixir's warning for `assert result = 7` is left to Elixir.
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
-   the right ones (the Ochiai formula, with DStar breaking ties).
+   the right ones (the Ochiai formula, with DStar breaking ties). Of lines scored alike, the one a wrong run crashed on
+   comes first: in QuixBugs' `find_in_sorted` two lines score the same, and changing the other one first gave the
+   expected output for the five runs given but a `RecursionError` on another of the benchmark's tests.
 2. On the most suspicious lines, the small edits behind most logic bugs are generated: `<` for `<=`, a bound one out, the
-   wrong operator, integer division, `min` for `max`, an `if` / `elif` chain in the wrong order.
+   wrong operator, integer division, `min` for `max`, an `if` / `elif` chain in the wrong order - and, from the bugs of
+   the QuixBugs benchmark the search used to miss: two arguments in the wrong order, an argument, an index or a length
+   one out, added at the wrong end (`result + digit` for `digit + result`), `any` for `all`, the wrong bitwise operator,
+   the wrong variable, a running best replaced rather than kept (`max(longest, length + 1)`), a generator's own call
+   yielded whole, a base case that answers nothing (`[]` for `[[]]` or `[n]`) or is one too small (`len(arr) == 0` for
+   `<= 1`), a count never checked (`return True` for `return depth == 0`), a recursive base case that does not stop at
+   an empty list, a list not shortened like the one beside it, a loop over items already taken, a place value one
+   digit out (`n // 100` for `n // 10`, which takes two digits off a number where one was meant), an index passed
+   on to a function's call of itself on part of a list without being shifted past the items left behind (`kth(above, k)`
+   for `kth(above, k - num_lessoreq)`, the counts tried being those worked out with `len`), and an answer built from the
+   function's answer for less that leaves that answer out (`[[first] + subset for subset in rest_subsets]` for
+   `rest_subsets + [...]`: the subsets without the first item are subsets too) - and, in Python, an item read from the
+   wrong end of a list (`sorted(marks)[0]`, the smallest, for `sorted(marks)[-1]`, the largest). Two edits add a
+   line rather than change one: the piece left over when a loop ends (`lines.append(text)` before `return lines`), and
+   the item pushed back onto a stack after the stack was popped down to its place.
 3. Each edit is made in a private copy, built and run with every input. The first that prints exactly what was expected
    for every run is the answer. More runs, especially ones that go wrong in different ways, make the answer better.
+   Several edits are tried at once, so on a busy computer one can be stopped for time, which shows nothing either way:
+   it is tried again straight away, on its own and with three times as long, rather than after every edit ranked below it.
+   When the edits tried beside it finished in a fifth of the time, though, the computer was not busy and the edit itself
+   ran on - as `while n >= 0` does where `n > 0` stopped the loop - so it is not tried again, and the time goes on others.
+   The first 40 edits, the likeliest first, are always tried, however long they take, so a busy computer does not decide
+   how many are: a CI runner busy with other work once took fourteen seconds for runs that took half a second here. After
+   them the search goes on for up to two minutes in all, and never for more than five. The search for the change that
+   makes failing tests pass works to the same times.
+
+Measured on the 31 Python programs of the QuixBugs benchmark that come with test inputs, each given at most its first
+five inputs that the corrected version answers quickly, with the corrected version's output as what was expected: the
+search found a change for 29, and each of the 29 also gives the corrected version's answer on every one of the
+benchmark's tests for that program (leaving out one test each for `knapsack` and `levenshtein`, which the corrected
+versions themselves do not finish in 30 seconds). 25 make the program the same as the benchmark's corrected one; the other
+4 do the same in another way, such as `if perm[j] > perm[i]` for `if perm[i] < perm[j]`. It found none for `sqrt`, nor
+for `lis`, whose five inputs do not show its bug.
 
 A run that stops with an error, or is still going when the time runs out, is compared as far as it got and said to have
 stopped - never to have run to the end - and an edit only counts if the program then finishes.
@@ -1245,7 +1822,7 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | Check | For example |
 |---|---|
 | Dividing by something that can be zero | `total / count` when the loop that counts may never run |
-| Using something that can be null | a variable set to null and only sometimes given a value; the result of `?.` used unchecked |
+| Using something that can be null | a variable set to null and only sometimes given a value; the result of `?.` used unchecked; `map.get(key)` for a key not known to be there - not one just `put`, or tested with `containsKey`, until the key's variable changes or something is removed |
 | A position that does not exist | `points[3]` on a list of three |
 | Taking an item from something empty | `pop()` on an empty list, `Pop()` on an empty stack - or on one empty only on some ways to it: `items = []`, an `append` only `if flag:`, then `items.pop()` |
 | Text that is not a number | `int("twelve")`, `Integer.parseInt("twelve")`, `int.Parse("twelve")` |
@@ -1261,6 +1838,11 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | A function that never stops calling itself | `return countdown(n - 1)` with no way out, or `is_even` and `is_odd` calling each other - in Python, Java, C#, JavaScript and Go |
 | A sum too big for an int | `days * 24 * 60 * 60 * 1000` with `days` 365, which wraps round to 1471228928 - Java, C#, C, C++, and Go for an `int32` |
 | A lock that is not always released | `lock.lock()`, then a `return` before `unlock()` |
+| A value worked out and then lost | `result = width * height`, then `result = width * width` before anything reads `result` |
+| A value passed in and never used | `quantity = 1` at the start of `total_price(price, quantity)`, before anything reads `quantity` |
+| A flag a loop never sets | `found = False` before a search loop that never sets it, then `if found:` after the loop |
+| A count left out of step | `push` appends to `items` and adds 1 to `size`, `pop` takes an item out and leaves `size` as it was |
+| A yes-or-no function that always gives the same answer | `is_prime` returning `True` when it finds a divisor, as it does at its end |
 
 A loop whose test holds the first time it is made - `i = 0` against `i < 4`, or `range(4)` - goes round at least once, so
 what its body certainly does is certain after it: a list it adds to is not empty, and dividing by its length is safe.
@@ -1277,6 +1859,142 @@ the whole program with `Stack overflow.` - a `try` and `catch` around the call d
 `RangeError: Maximum call stack size exceeded`, and Go with `fatal error: stack overflow`. A ring is said once, at its
 first function, and a run that crashed in it is the same finding. C and C++ are left to `gcc -Wall`, which warns
 `infinite recursion detected`.
+
+**A value worked out and then lost** is a function's own variable given a value and then, on every way on from there,
+given another before anything reads it: the work done for the first value is thrown away, and most often the second line
+was meant for another variable, or the first value was meant to be used before it. Every way through the function is
+followed from the line, the ways an exception can go among them - a handler that reads the variable keeps the value in
+use - and a way that reaches the function's end without giving the variable another value makes it a value nothing
+reads, which is not said here. A starting value - a literal, None or null, an empty list, a new object made with
+nothing - is left alone, as code often gives a variable one first; so is each item a for loop gives its variable, a name
+starting with an underscore, the top level of a file, whose names a function it calls can read, a variable a nested
+function or a lambda uses, one whose address is taken, a C++ reference and a variable one is bound to - after
+`int& alias = rows;`, `alias = 10;` gives `rows` the value - and Python's global and nonlocal names. On the open-source
+programs FixFinder's checks are tried on - 144 Python, 182 Java, 16 C#, 24 JavaScript and 14 C files - it found
+nothing.
+
+In TypeScript, Ruby, PHP, Lua, Perl, Dart, PowerShell, Scala and Fortran, whose values are not followed through the code,
+a logic check finds the plainest case of it: two lines one after the other, at the same indentation, each the whole of a
+statement giving the same plain variable a value - `$result = $width * $height;`, then `$result = $width * $width;` - the
+second neither declaring it again, nor reading it, even inside its text, nor given only under a modifier such as `if
+ready`. A starting value given first is left alone, and so is a second value that names a function or method the file
+defines, which may read the variable from where it is, and two lines inside a block whose rescue, catch or except reads
+the variable, as an error on the second line takes the first value there. A TypeScript file is read with JavaScript's
+checks, as every TypeScript file is, and this one says it only of TypeScript: a JavaScript file's values are followed
+through the code. Rust's compiler says it itself - value assigned is never read - as Elixir's, OCaml's and F#'s say a
+variable is unused, and Erlang does not let a variable be given a second value.
+
+**A value passed in and never used** is a parameter given a new value, on every way through the function, before
+anything reads the one the caller passed - `quantity = 1` at the start of `total_price(price, quantity)` - so the function
+works the same whatever it is given: `total_price(4, 3)` gave 4 where 12 was meant in fifteen of its sixteen languages
+here, OCaml not being run. Python, Java, C#, JavaScript, Go, C and C++ have it followed through the code, with the ways an
+exception can go; a way that reaches the end without a new value leaves the parameter unread rather than replaced, which
+is not said. A C++ reference and a C# `ref` or `out` parameter are left alone, as giving one a value gives the caller's
+variable it, and so is a parameter a nested function or a lambda uses. TypeScript, Ruby, PHP, Lua, Perl, Dart and
+PowerShell have a logic check for the plainest case: the first line of the function to name the parameter is at the
+function's own depth, not inside an if or a loop, and gives it a value that does not read it, even inside its text.
+PHP's `&$counts`, PowerShell's `[ref]`, Dart's `this.width` and Ruby's `&block` are left alone. F# and OCaml do not give
+a variable a new value, so their check finds a `let` of the parameter's name that hides it before anything reads it.
+Rust's compiler warns that the value passed is never read, and Elixir's that the parameter is unused; Scala's parameters
+cannot be given a value, Erlang's variables cannot be given a second one, and Fortran's arguments are the caller's own
+variables unless declared `value`.
+
+**A flag a loop never sets** is a flag set to false - or 0 - just before a loop with an if in it, and tested by an if after
+the loop, when nothing in the function ever gives it another value: `if found` after the loop is never true and `if not
+found` always is, so a search for 2 in 1, 2, 3 printed `found it` and then `missing` in eighteen of its nineteen
+languages here, OCaml not being run. Python, Java, C#, JavaScript, Go, C and C++ have it followed through the code: no
+assignment, increment, loop variable, handler or call it is passed to as C#'s `out` or `ref` may give it a value, and a
+parameter, a name a nested function or a lambda shares, and one whose address is taken are left alone. A switch such as
+`debug = False` is not one: nothing is said unless the flag is set just before a loop that searches. TypeScript, Ruby,
+PHP, Lua, Perl, Dart, PowerShell, Scala, Fortran, Rust, F# and OCaml have a logic check: the flag set off on the line
+before the loop's header, no line naming it but conditions that read it, and the first line from the loop's end to name
+it an if of the flag or of not the flag - `unless found`, `if (-not $found)`, `if (.not. found) then`, OCaml's `if
+!found`. A line handing the flag to a call - as PHP's references, Perl's `\$found`, PowerShell's `[ref]` and Fortran's
+arguments let a call set it - leaves it alone. Elixir and Erlang do not let a loop change a variable outside it.
+
+**A count left out of step** is a class keeping a list and a number saying how many it holds, where one method changes
+both - `push` puts an item in and adds 1 - and another changes only one: `pop` takes an item out and leaves the number
+as it was, so three pushes and a pop said 3 where 2 were left, in all fifteen of its languages here. Python, Java, C#,
+JavaScript, Go and C++ have it found by comparing what each method does to the object's fields - `append`, `push_back`,
+`Add`, `pop`, `RemoveAt`, Go's `append` and slicing - and TypeScript, Ruby, PHP, Lua, Perl, Dart, PowerShell, Scala and
+Rust by a logic check reading each method's lines in the language's own words: `@items << item`,
+`$this->items[] = $item`, `table.insert(self.items, item)`, `push @{ $self->{items} }, $item`, `$this.size++`. The two
+are kept together when one method adds an item and 1, or takes one out and 1, and the number's name has to say it
+counts - size, count, length, len, num, top or n - so a running total of pushes is not taken for one. A method calling
+another of the class's methods, which may keep the rule for it, a method giving either field a value of another kind -
+`size = len(items)`, `items = []` - and a constructor are left alone. C has no classes, and F#, OCaml, Fortran, Elixir
+and Erlang have no check of it.
+
+**A yes-or-no function that always gives the same answer** is one named as a question - `is_prime`, `hasDuplicates`,
+`IsValidMark`, a name starting is, has, can, should, contains, was, are, does, needs, allows or matches - whose every
+return gives back the same true, or the same false, written out: an `is_prime` that returns True when it finds a
+divisor, as it does at its end, says every number is prime, and every `if` that asks it goes the same way. It is a
+warning on the function, naming the lines of its returns - *`is_prime` always says True, whatever it is asked about:
+each of its 3 returns gives back True - on lines 3, 6 and 7 - so asking it tells the caller nothing* - in Python, Java,
+C#, JavaScript, Go, C and C++; C's are `stdbool.h`'s true and false, so one returning 1 and 0 is not read as yes or no.
+It takes two returns or more, so a placeholder with one - `is_admin` returning True until it is written, or a base
+class's `readable()` returning False for a subclass to change - is left alone; and a function that can reach its end
+without a return gives back None, or undefined, there, so its last line has to be a return or a throw. Python 3.13's own
+library, in 1,094 files, the npm that comes with Node, in 1,174, and the 397 programs of the open-source corpus had none.
+
+**A binary search given a list out of order** is a search that looks at the middle item and throws away half - the
+program's own, or the library's `bisect`, `Arrays.binarySearch`, `Array.BinarySearch`, `std::binary_search`,
+`sort.SearchInts`, `binary_search`, `bsearch`, Scala's `search` or PowerShell's `[Array]::BinarySearch` - given a list
+of numbers written out of order: asked for 5 in `5, 1, 4, 9`, every one answered no in eighteen of its nineteen
+languages here, OCaml not being run. The contract, a list in order, is read from the search itself: a function working
+out a middle by halving two bounds, testing its list's item there, moving a bound to the middle or searching again
+beside it, and never writing into the list - so quicksort's middle pivot, merge sort and binary insertion sort, given
+lists out of order on purpose, are left alone. The list is checked where the call writes it, or in the nearest line
+before that gives the name it passes, with no line between naming it, so a list sorted before the search, added to or
+read in is left alone. The change writes the list in order. Elixir and Erlang have no check of it.
+
+**A not-found answer used as a position** is a function of the program answering -1 when it finds nothing - `return -1`
+after a loop returning the place it finds - and a caller reading a list at its answer with nothing checking for -1
+first: `place = find(names, "dan")`, then `names[place]`. What -1 does there was run in each language: Python, Ruby,
+Perl and PowerShell printed `cat`, the last name, as if it had been found; JavaScript and TypeScript printed
+`undefined`, Lua `nil`, and PHP warned `Undefined array key -1`; Java and Scala stopped with
+`ArrayIndexOutOfBoundsException`, C# with `IndexOutOfRangeException`, Dart with a `RangeError`, Go with `index out of
+range [-1]`, Rust with a panic, and C++'s `at` with `std::out_of_range`; C printed stray bytes from before the list, and
+Fortran a blank line, but for a build with bounds checked, which stopped. The answer is read straight from the call -
+`names[find(names, "dan")]` - or through a variable given it whose first use after is the read; a line comparing it, or
+a condition naming it, checks it, and the read is left alone. Scala's and Fortran's reads look like calls, so only a list
+the file declares is taken as one. F#, OCaml, Elixir and Erlang answer not found with an option or an atom a caller
+has to match, and have no check of it.
+
+The fourteen languages whose values are not followed through the code - TypeScript, Ruby, PHP, Lua, Perl, Dart, PowerShell, Scala,
+Fortran, Rust, Elixir, Erlang, F# and OCaml - have a logic check for **two comparisons of one number** that decide less
+than they seem to, which the analyses find in the other seven as a condition that can never be true or is always true:
+`mark > 100 && mark < 0`, which no number makes true, so what it decides never happens; `answer != 1 || answer != 2`,
+which every number makes true; and `score >= 50 && score > 40`, whose second half adds nothing - often a range with one
+side facing the wrong way. Each comparison is of the same name with a number, written either way round, in the
+language's own words - `-gt` and `-and` in PowerShell, `.and.` and `/=` in Fortran, `=<`, `=/=` and `andalso` in Erlang,
+`<>` in F# and OCaml, `~=` in Lua - and the two are joined by one and or one or with nothing else between them. An or
+whose half an and on either side would take first is passed over, and so is a half after a not. What a pair decides is
+worked out for every number, whole or not, so `x > 5 && x < 6` is not said to be never true.
+
+**A loop that stops after its first item** - an if in the loop that returns when the item matches, and an else that
+returns when it does not - is found in Python, Java, C#, JavaScript, TypeScript, C and C++, and by a logic check of its
+own in Go, Rust, Dart, PHP, Perl, Scala, PowerShell, Ruby, Lua and Fortran: `if item == wanted { return true } else {
+return false }` looks only at the first item, and `contains([3, 5, 7], 7)` said no in all ten here. The if must start
+its chain and end with a return, the else hold nothing but a return - in Fortran, after the value it gives the
+function's result - and the loop end where the else does. Left alone: an else giving back the loop's own variable, the
+first item itself; an if whose return is inside a further if; an else-if chain that skips some items before deciding;
+and PowerShell's `ForEach-Object`, whose `return` goes on to the next item. The change takes the else out where the line
+after the loop already gives back the same, and puts its return after the loop where the loop ends its function or an
+if; where other code follows the loop, or the loop is inside another, none is offered, as moving the return would change
+what runs. Elixir, Erlang, F# and OCaml have no return to leave a loop early.
+
+**A list filled and never read** - every line naming it after it is made only adds to it, and nothing gives it back,
+prints it or passes it on - has a logic check in Python, Java, C#, JavaScript, TypeScript, Go, C++, Rust, Ruby, PHP, Lua,
+Perl, Dart, PowerShell, Scala and F#. Most often the function gives back what it was given: `result.append(mark * 2)` in
+the loop and then `return marks`, which gave back 1, 2, 3 where 2, 4, 6 was meant in all sixteen here. The list must be
+made empty inside a block, in the language's own words - `[]`, `new ArrayList<>()`, `Vec::new()`, `my @result`, `@()` -
+and every later line naming it must be a whole statement that only adds to it, with what is added never naming it. Left
+alone: a set read through a membership test or through what its add says - `if (!seen.add(mark))` - a map whose every
+update reads it, and any list another line names. The change gives back the filled list in place of a parameter the
+function gives back, when the parameter is of the list's type, or as Scala's `toList` and F#'s `List.ofSeq` make it; where
+the function gives back another local, or a parameter of another type, none is offered. C and Fortran fill arrays by
+position rather than adding to them, and Elixir's, Erlang's and OCaml's lists are not changed in place.
 
 **A sum too big for an int** is int arithmetic whose values the code shows and whose result passes what an int holds -
 2,147,483,647, or -2,147,483,648 below. Java and C# work it out as an int, and it wraps round: `long millis = days *
@@ -1362,9 +2080,17 @@ caught: an index outside a C# array raises an `IndexOutOfRangeException`, and ou
 **Loops** are reasoned about with **relations between variables**, settled by the constraint solver. A counted loop's
 counter is tied to its limit - inside `for i in range(len(a))`, `i ≤ len(a) - 1` - so `a[i + 1]` is found past the end
 on the last time round whatever the list's length, as is `a[i]` under `i <= a.length`, a loop counting down from
-`a.length`, or `a[i - 1]` on a Java loop's first time round. A while loop's **candidate invariants** - its condition's
+`a.length`, or `a[i - 1]` on a Java loop's first time round. A read that waits on a test - `i > 0 ? a[i - 1] : 0`,
+`a[i + 1] if i + 1 < len(a) else a[i]`, the right of `&&`, `||`, `and` or `or` - counts only where the test lets it
+through, so a knapsack table with a row for no items is left alone; where the test lets a bad index through one time
+round in, `i > 0 ? a[i - 2] : 0`, the failure is put there, when `i` is `1`. A while loop's **candidate invariants** - its condition's
 relation, such as `lo <= hi`, and the bounds its starting values give - are kept only when the solver shows them
-**inductive**: true on entry, and kept by every way through the body. Within them, a state that one time round leaves
+**inductive**: true on entry, and kept by every way through the body. They are proven together (the Houdini method):
+each must be kept given all the others still standing, and any that is not is dropped and the rest tried again - so in
+TheAlgorithms' C# Fibonacci search, `fibonacciNum >= 1` and `fibonacciNumPrevious >= 1` each keep the other, where neither
+is kept on its own, and the loop is no longer said to be able to get stuck with every number 0. A starting value given
+from another of the loop's variables - `fibonacciNum = fibonacciNumPrevious` just after `fibonacciNumPrevious = 1` - is
+followed too. Within them, a state that one time round leaves
 unchanged is a loop that never ends - the binary search that sets `lo = mid` gets stuck when `hi` is `lo + 1`, and the
 finding shows that state and the invariants that make it reachable.
 
@@ -1485,7 +2211,28 @@ inputs - or, for top-level code, the program is run with them typed in - under a
 predicted error on the predicted line does the finding become Certain, and it says what happened: *Running
 `average(values=[])` stopped with ZeroDivisionError on line 8, where `count` was 0. Lines it ran: 1-5, 8.* The lines it
 ran are compressed, so a loop that went round three times shows as `(5-7)×3`; in a notebook they are given cell by cell,
-`cell 2: 1-4; cell 3: 2`. A method, which needs its object, is left as it was. When the program's own run crashes at a
+`cell 2: 1-4; cell 3: 2`. A method, which needs its object, is left as it was. A static Java method - a private one too -
+is tried the same way: a small class compiled beside a copy of its file calls it through reflection with the inputs
+written as Java writes them - `new int[0]`, `""`, `null`, a list of zeros - so the program's own `main` never runs, and
+only the predicted exception on the predicted line makes the finding Certain: *Running `average(new int[0])` stopped
+with ArithmeticException: / by zero on line 7.* It is compiled with its variables' names kept, so a NullPointerException
+names the one that was null - *because "chosen" is null*. A method of an instance, a file that does not compile on its
+own and an input Java cannot write down leave the finding as it was. A Go function - not a method - is tried from a
+small file built beside a copy of its own, whose `main` is renamed so the program's own never runs: the inputs are
+written as Go writes them - `[]int{}`, `""`, `nil`, `make([]int, 3)` - and a parameter the inputs leave free, which
+takes the same way through the function whatever it holds, is given Go's zero value. The panic is recovered and its line
+read from the stack, and only the predicted panic on the predicted line makes the finding Certain: *Running
+`share(0, 0, "")` stopped with a panic - runtime error: integer divide by zero - on line 9.* Go builds it without
+downloading anything, so a file that needs a module or the other files of its package leaves the finding as it was.
+A JavaScript function declared at the top of its file is tried from the end of a copy of the file that keeps only what
+the file defines - its functions, classes, constants and requires - and leaves every other top-level line empty, so the
+program's own code never runs and every line keeps its number. Node compiles the copy as the program's own file, so its
+requires find the program's other files, and a parameter the inputs leave free is given `undefined`, as a call that
+leaves it out gives it. JavaScript divides by zero into Infinity and reads past the end of a list as `undefined`, so
+only a value read from null or undefined is tried, and only a TypeError on the predicted line makes the finding Certain:
+*Running `greet(null)` stopped with TypeError: Cannot read properties of null (reading 'name') on line 5.* An ES module,
+a method and a function kept in a constant leave the finding as it was.
+When the program's own run crashes at a
 line the analysis shows can fail, the two are one mistake, so they are **one finding**: what the language said, with the
 input that fails, the lines that decide it and the run that confirmed it - `take(False)` stopping with `IndexError: pop
 from empty list` is one finding that says *On one way through the code `items` is always empty here - for example when
@@ -1572,27 +2319,27 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 89 | 74 | 41 |
-| Java | 57 | 60 | 51 |
-| C# | 50 | 49 | 49 |
-| C | 46 | 34 | 39 |
-| C++ | 45 | 43 | 39 |
-| JavaScript | 43 | 52 | 16 |
-| Go | 38 | 23 | 18 |
-| Scala | 6 | 18 | 28 |
-| OCaml | 6 | 11 | 26 |
-| Rust | 4 | 10 | 33 |
-| Ruby | 13 | 28 | 26 |
-| PHP | 15 | 24 | 18 |
-| Lua | 12 | 16 | 25 |
-| Perl | 13 | 21 | 26 |
-| Dart | 13 | 13 | 23 |
-| Fortran | 12 | 14 | 19 |
-| PowerShell | 10 | 25 | 16 |
-| Elixir | 12 | 16 | 29 |
-| Erlang | 9 | 10 | 23 |
-| F# | 16 | 15 | 33 |
-| TypeScript | 47 | 52 | 26 |
+| Python | 91 | 117 | 41 |
+| Java | 67 | 104 | 51 |
+| C# | 52 | 91 | 49 |
+| C | 46 | 69 | 39 |
+| C++ | 46 | 85 | 39 |
+| JavaScript | 44 | 95 | 16 |
+| Go | 38 | 67 | 18 |
+| Scala | 6 | 68 | 28 |
+| OCaml | 6 | 28 | 26 |
+| Rust | 7 | 56 | 33 |
+| Ruby | 13 | 78 | 26 |
+| PHP | 16 | 74 | 18 |
+| Lua | 12 | 65 | 25 |
+| Perl | 14 | 71 | 26 |
+| Dart | 16 | 63 | 23 |
+| Fortran | 13 | 49 | 19 |
+| PowerShell | 11 | 75 | 16 |
+| Elixir | 15 | 38 | 29 |
+| Erlang | 13 | 29 | 23 |
+| F# | 17 | 42 | 33 |
+| TypeScript | 48 | 100 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
@@ -1621,6 +2368,9 @@ Some limits are part of how FixFinder works:
   same files; the program still runs whole, and Java, C# and Go are built as their own tools build them. A C or C++ file
   is built as its Makefile or CMakeLists.txt builds it; without one, it is built with the other source files beside it
   only when its folder holds no more than 200 files and exactly one of them has a `main`, and otherwise on its own.
+- **Size.** A file of more than 2 MB is still built and run, but the logic checks do not read it and no fix is worked
+  out in it, and a note says so. There is no limit on lines: how many 2 MB holds, and how long a check of up to
+  100,000 lines took, is under How big a program can be, below.
 - **Build files.** A Makefile or CMakeLists.txt is read, never run, so what it would only know by running something -
   `$(shell ...)`, `execute_process`, which CMake runs it, a package `find_package` looks for, a file a command writes while
   it builds - is not known: how the program ran names each, and a program whose files depend on one is built as if
@@ -1638,6 +2388,139 @@ async functions; C that manages its own memory; C++ templates, lambdas, RAII and
 goroutines - and correct code written to look like the mistakes the patterns look for. Each must be read whole and draw
 no error or warning, beside programs split into modules whose mistakes cross from one file to another and must be found
 where the call is made.
+
+### What one check runs
+
+A check of a program does all of this, as far as its language allows - Python, Java and C# furthest:
+
+1. **Builds and runs it** with its own compiler or interpreter - the time chosen in Settings for each run, a minute
+   unless chosen - and reads everything they say: every error and warning, and a crash's stack trace.
+2. **Works out a fix** for each of the first 12 errors and 20 warnings, from 547 fix rules across the languages; an error
+   past the twelfth is listed without one.
+3. **Reads the code for logic mistakes** with 1,223 logic checks, each written for one language or several - the table
+   above counts each language's - over at most 200 of the program's files, and says which of a Python, JavaScript or
+   TypeScript program's own files use which.
+4. **Follows every value through the code** with 54 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each read
+   by its own language's parser, and recognises from the same reading which of 16 algorithms a function is written as,
+   and from their names which pairs of functions are meant to undo each other; for Python and CommonJS JavaScript, it
+   also plays out the program's imports from the file that is run, to find any that go round in a circle and stop it, or
+   leave a name undefined; and it finds functions written twice.
+5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
+   should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only
+   when the copy no longer fails that way, and prints what it should when that was given. Up to 5 fixes have what they
+   change in the program's behaviour worked out by reading the code before and after them, and up to 3 have their file
+   read again with them made, to find which of the other findings each removes.
+6. **Tries what it predicted for real**, in Python, Java, Go and JavaScript: a crash the analyses predict is run with
+   the values that should cause it - up to 6 runs, 10 seconds each, or 60 for Go, which builds each run first - and a
+   Python, Java or C# program that asks questions is given an answer for each way through it, up to 6 sets of answers,
+   10 seconds each - a Java or C# one once it has built, and a sort, a reversal, a test of order, a search - for a
+   value, or for the largest or smallest item - a prime test, a leap-year test, a factorial, a greatest common divisor,
+   the Fibonacci numbers, a merge or a palindrome test recognised in a Python, JavaScript or Java program is called on
+   lists, numbers, years or words of FixFinder's own - and a pair named to undo each other is called one after the
+   other, on words or numbers of FixFinder's own.
+7. **Searches for the change that fixes what it prints**, when it is told what that is: up to 400 small changes on the
+   most suspicious lines, the 40 likeliest always tried, then more for up to 2 minutes, and never longer than 5.
+8. **Runs the program's own tests**: unittest, pytest and doctest for Python, JUnit for Java, node:test for JavaScript
+   and TypeScript, and a program that checks itself with assert or console.assert - a test that fails reported on the
+   line it failed on, and tests in a file of their own that all pass measured with up to 24 small changes to the code
+   they call, each made in a copy, none started once a minute has gone.
+9. **Follows a crash back**, when the program stopped with an error in its own code: a Python program is run a second
+   time recording what each variable held and what the conditions around the line read; a Java, JavaScript, TypeScript,
+   C#, Go, Rust, PHP, Dart, Lua, Ruby or Perl program that stopped on a missing value is copied and run again with a line
+   printed wherever the value could have come from; and one of those languages that stopped inside an if, an else or a
+   while is copied and run once more, printing what each of those conditions read - beside the copies that prove the
+   fixes, not after them.
+
+### How big a program can be
+
+There is no limit on lines. What is limited is the size of one file: a file of more than 2 MB (2,097,152 bytes) -
+generated, minified or data, as a rule - is still built and run, but the logic checks do not read it and no fix is worked
+out in it, and a note says so. How many lines 2 MB holds depends on how long they are: about 60,000 lines of the
+open-source programs FixFinder's checks are tried on, which average 34.6 bytes a line; 78,000 of the test programs
+written for them, at 26.7; and 40,000 of FixFinder's own C#, whose lines average 51.7.
+
+Beyond that, a check reads the code of at most 200 of a program's files. A fix is tried in a copy of the program's
+folder, or of its source files alone when the folder holds more than 300 files or 50 MB. A folder is checked as at most
+100 programs, 12 folders deep.
+
+How long a whole check took on this computer, in seconds, for one file of each size - many small functions, then one
+whose square is written with `^`, on one of the file's last few lines, which every check named. Each was the
+Release build of `fixfinder`, given no expected output, with nothing else running:
+
+| Lines | Python | Java | C# | JavaScript | C | C++ | Go |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 100 | 2.7 | 4.0 | 10.1 | 1.5 | - (1) | 7.2 | 2.9 |
+| 1,000 | 3.1 | 4.5 | 8.4 | 1.8 | 6.2 | - (1) | 2.9 |
+| 10,000 | 8.6 | 9.2 | 10.7 | 5.2 | 8.6 | 10.0 | 5.3 |
+| 50,000 | 26.7 | 23.6 | 30.4 (2) | 18.5 | 18.1 | 22.1 | 15.5 |
+| 100,000 | 47.6 | 13.2 (3) | 31.3 (2) (3) | 24.7 | 30.4 | 31.9 | 19.9 |
+
+(1) Windows' Smart App Control would not let the built program start in three tries, so no whole check was timed.
+(2) Windows would not let the built program start: the time is the build and the reading, without the run.
+(3) 2.1 MB and 2.2 MB - more than 2 MB, so the logic checks did not read them, which is why Java's took less than at
+50,000 lines, and the report said so in a note.
+
+A C# program is built with `dotnet build` before it runs, which took 6 seconds of the 100-line program's check. Telling
+FixFinder what the program should print adds a run for each change the search for a fix tries.
+
+### The tests FixFinder itself passes
+
+FixFinder's own tests are in `FixFinder.Tests`: 2,389 test methods in 409 classes, most of them run once for each
+program, mistake or language they are given - 121,293 test cases in all. Every push to `main`, and every run started by
+hand, runs them on GitHub's Windows runner in five jobs at once, from `.github/workflows/tests.yml`. On commit 2f46db7
+(run 43872860835) every one of them passed:
+
+| Job | Test cases | What it runs |
+|---|---:|---|
+| dotnet test | 121,293 | every test, with the compilers and interpreters the runner has, and the ones the workflow installs - JUnit and Lombok, pytest and plotly, TypeScript's compiler - in 42 minutes |
+| Java 25 | 1,060 | the tests that build and run Java, again with Java 25 |
+| Java 27 | 1,060 | the same with Java 27 |
+| Scala | 652 | the Scala tests and every lesson's programs, with Scala 3.8.4 and 2.13.18 |
+| OCaml | 661 | the OCaml tests and every lesson's programs, with OCaml 5 |
+
+That is 124,726 test cases a run. By folder of `FixFinder.Tests`, from the dotnet test job:
+
+| Folder | Test cases | Classes | What they test |
+|---|---:|---:|---|
+| `Robustness` | 101,921 | 6 | every program the other tests hold, tried on each check in ways it was not written for - below |
+| `Logic` | 8,259 | 162 | the logic checks - each mistake in every language it is read in, its change, and correct code left alone - and every guide's example |
+| `Parsing` | 3,938 | 11 | reading stack traces and compiler messages in every language, among them the output of real runs, captured |
+| `Teaching` | 2,339 | 7 | FixFinder Learn: its lessons, each lesson's programs run, and the explanations behind them |
+| `LocalFixes` | 1,246 | 34 | the fix rules |
+| `Execution` | 1,169 | 68 | finding compilers and interpreters, building and running programs, and running a program's own tests |
+| `Analysis` | 1,144 | 62 | following the values through the code |
+| `Engine` | 477 | 7 | the command line, comparing one check with the last, and answering what a program asks for |
+| `Checking` | 441 | 33 | whole checks of programs - coursework among them - and fixes run in copies |
+| `Sources` | 152 | 3 | searching GitHub and Stack Overflow, and reading a missing package or library out of an error |
+| `Patching` | 100 | 7 | reading the changes search results hold and where they would go |
+| `Ranking` | 30 | 2 | ranking search results |
+| `Fingerprinting` | 21 | 1 | the search made from an error |
+| `Http` | 21 | 2 | fetching and keeping what was fetched |
+| `Reporting` | 20 | 2 | the report, as a page and as lines |
+| `Security` | 9 | 1 | keeping the GitHub token |
+| `Display` | 6 | 1 | fitting a window to its screen |
+
+Most of the cases are the robustness tests, which take every program the other tests hold - the lessons, the guides'
+examples, the captured programs and the tests' own snippets - and try each check on it in ways it was not written for:
+
+| Robustness class | Test cases | What each case asks |
+|---|---:|---|
+| `HarmlessChangeTests` | 41,960 | each program read again after a change that leaves what it does as it was - Windows line endings, a byte-order mark, spaces at the ends of lines, blank lines after the end, a comment line above the first - draws the same findings on the same lines |
+| `LogicCheckRobustnessTests` | 40,964 | each logic check, on code no one would write on purpose but anyone can paste, finishes, throws nothing, and points only at lines the file has |
+| `FixRuleRobustnessTests` | 10,161 | each fix rule, given an oddly shaped report - no place, line 0 or line 99,999, an empty file, a 100,000-character line - answers and throws nothing |
+| `OwnChangeTests` | 3,678 | each change a logic check offers, made, leaves one fewer of that check's mistakes in the file, and no more of any other |
+| `MaskingTests` | 3,273 | blanking a program's strings and comments, as the checks read it, keeps every line and its length, under every language's rules |
+| `FindingShapeTests` | 1,885 | each finding names a line the file has, and its change takes away only lines the file has |
+
+133 classes, named `...LiveTests`, hold 1,934 cases that build and run real programs with their own language's tools,
+through FixFinder or the part of it being tested, and check what came of it: the mistake named on its line, a fix proved
+by a copy of the program that ran with it, a crash followed back to where its value came from, a lesson's program doing
+what the lesson says. The other cases read code, run FixFinder's parts on their own, or run a program without the whole
+check.
+
+On this computer the same tests outside the live classes - about 119,400 cases - ran in about 12 to 22 minutes. The few
+that fail here are tests whose built programs Windows' Smart App Control would not start, which a run on GitHub, with no
+Smart App Control, passes.
 
 ## Searching online
 
@@ -1701,7 +2584,7 @@ problem. It exits with 0 when nothing is wrong, 1 when there is at least one err
 | `FixFinder.Core` | Everything but the windows. `net8.0`, so the tests run without a desktop. |
 | `FixFinder.Gui` | FixFinder's window. |
 | `FixFinder.Learn` | FixFinder Learn's window. Its lessons, and everything it runs, come from `FixFinder.Core`. |
-| `FixFinder.Desktop` | What the two windows share: the styles, the light and dark themes, code shown in text, and fitting a window to its screen. |
+| `FixFinder.Desktop` | What the two windows share: the styles, the light and dark themes - the title bar included, coloured as the header under it - code shown in text, and fitting a window to its screen. |
 | `FixFinder.Cli` | `fixfinder`, the same check from a terminal or an editor. All of it is `Core/Engine/CommandLine.cs`; this only hands it the console. |
 | `FixFinder.Tests` | xUnit tests, in folders that mirror `FixFinder.Core`. |
 | `TestTargets` | Small programs that crash, hang or print the wrong thing, to point FixFinder at. |
@@ -1764,7 +2647,7 @@ dependable way in. Each project signs its Debug build - its DLL, and the launche
 when a code-signing certificate is present, and does nothing when there is not one, as on CI.
 
 The logo is drawn by `FixFinder.Gui\Assets\make-icon.py`, which draws every icon size at its own scale so the small ones
-stay sharp.
+stay sharp, and fills its whole square at every size, so on the desktop it is as big as the icons beside it.
 
 ## Licence
 

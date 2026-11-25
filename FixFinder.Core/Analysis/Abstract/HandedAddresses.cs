@@ -101,7 +101,16 @@ public sealed class HandedAddresses
         _ => null,
     };
 
-    private static Expr Unwrapped(Expr expression) => expression is Cast cast ? Unwrapped(cast.Value) : expression;
+    /// <summary>
+    /// What an expression hands on: the value inside a cast, and the pointer a C++ call may give a new value through a
+    /// reference - bump(p) is handed p, whatever bump does with p itself.
+    /// </summary>
+    private static Expr Unwrapped(Expr expression) => expression switch
+    {
+        Cast cast => Unwrapped(cast.Value),
+        AssignValue { Value: Opaque { What: "set by the call" } } handed => Unwrapped(handed.Target),
+        _ => expression,
+    };
 
     /// <summary>The function's own pointers that are given the address, directly or from another that holds it.</summary>
     private static HashSet<string> Holders(IReadOnlyList<Stmt> body, IReadOnlySet<string> locals, Func<Expr, bool> isAddress)

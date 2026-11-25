@@ -51,6 +51,15 @@ public class NeverRunningCodeLiveTests(ITestOutputHelper output)
             "C", "B"
         },
         { "F#", "logic-fsharp-branch-never-reached", $"let score = {Ladder}\nif score >= 50 then printfn \"C\"\nelif score >= 70 then printfn \"B\"\nelse printfn \"F\"\n", "C", "B" },
+        // Blocks of other shapes, which the change once cut in the wrong places: a } on a line of its own before else if, Allman
+        // blocks on one line, and a one-line block before one over several lines.
+        { "JavaScript", "logic-branch-never-reached", $"const score = {Ladder};\nif (score >= 50) {{\n    console.log(\"C\");\n}}\nelse if (score >= 70) {{\n    console.log(\"B\");\n}}\n", "C", "B" },
+        { "C", "logic-branch-never-reached", $"#include <stdio.h>\nint main(void) {{\n    int score = {Ladder};\n    if (score >= 50)\n    {{ puts(\"C\"); }}\n    else if (score >= 70)\n    {{ puts(\"B\"); }}\n    return 0;\n}}\n", "C", "B" },
+        {
+            "Java", "logic-branch-never-reached",
+            $"public class Main {{\n    public static void main(String[] args) {{\n        int score = {Ladder};\n        if (score >= 50) {{ System.out.println(\"C\"); }}\n        else if (score >= 70) {{\n            System.out.println(\"B\");\n        }}\n    }}\n}}\n",
+            "C", "B"
+        },
 
         // Loops that count the wrong way: 3 times round meant, 0 counted.
         { "Python", "logic-python-loop-never-runs", "count = 0\nfor i in range(3, 0):\n    count += 1\nprint(count)\n", "0", "3" },

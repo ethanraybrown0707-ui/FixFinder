@@ -152,6 +152,25 @@ public class NativeBuildTests : IDisposable
         Assert.Equal("from_cmake", NativeBuild.For(At("both/main.c")).Build?.Program);
     }
 
+    /// <summary>
+    /// TheAlgorithms' C searches (MIT licence) link function_timer, a library the project builds in a folder of its own:
+    /// without that folder, linking it by name failed the build of a program that used nothing from it, and nothing said
+    /// why. A library that is not on this computer is left out, and said so; one that is, the maths library, is linked.
+    /// </summary>
+    [Fact]
+    public void ALibraryThatIsNotOnThisComputerIsLeftOutAndSaidSo()
+    {
+        if (Toolchains.FindGnu(cpp: false) is null) return;
+
+        Write("search/naive_search.c", "int main(void) { return 0; }");
+        Write("search/CMakeLists.txt", "add_executable(naive_search naive_search.c)", "target_link_libraries(naive_search function_timer m)");
+
+        var build = NativeBuild.For(At("search/naive_search.c")).Build!;
+
+        Assert.Equal(["m"], build.Libraries);
+        Assert.Contains(build.NotFollowed, note => note.StartsWith("it links function_timer, which is not a library on this computer", StringComparison.Ordinal));
+    }
+
     /// <summary>A build file that does not build the file at all - a scratch file beside a project - leaves it built on its own.</summary>
     [Fact]
     public void AFileNoProgramIsBuiltFromIsNotGivenABuild()
