@@ -5,7 +5,7 @@ using FixFinder.Core.Reporting;
 namespace FixFinder.Core.Checking;
 
 /// <summary>
-/// The one change FixFinder makes to a person's own file, and only when they press for it: a fix FixFinder is certain
+/// The one change FixFinder makes to a person's own code, and only when they press for it: a fix FixFinder is certain
 /// solves the mistake - a copy of the program with it printed what the person said the program should print - and small,
 /// at most <see cref="MostLines"/> lines taken out and as many put in. Before writing, it makes sure the file is as it was
 /// when it was checked, and keeps a copy of it as it was.

@@ -10,9 +10,10 @@ the exact code to change, why FixFinder thinks so - and only then what this kind
 
 There is no AI in it. Every check is ordinary code you can read: compiler and interpreter output, rules that work a fix
 out from an error message, patterns that recognise mistakes in the code itself, and a search that tries small changes
-until the program prints what it should. FixFinder changes none of your files unless you press **Apply this fix** on a
+until the program prints what it should. FixFinder changes none of your code unless you press **Apply this fix** on a
 finding, and it offers that only for a small fix it is certain of - one that made a copy of the program print what you
-said it should - keeping the file as it was first.
+said it should - keeping the file as it was first. The only other thing it writes into a project is what restoring the
+project's libraries writes, when you turn that on.
 
 ## Using it
 

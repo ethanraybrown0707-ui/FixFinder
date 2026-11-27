@@ -1185,7 +1185,7 @@
                 <TextBlock x:Name="LogPathText" AutomationProperties.AutomationId="LogPathText"
                            Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="0,0,16,0"
                            TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
-                           Text="FixFinder changes your files only when you press Apply this fix. Other fixes are shown for you to copy."/>
+                           Text="FixFinder changes your code only when you press Apply this fix. Other fixes are shown for you to copy."/>
             </DockPanel>
         </Border>
     </Grid>
