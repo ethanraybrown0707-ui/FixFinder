@@ -824,7 +824,15 @@ public static partial class AlgorithmTrial
     /// program's own name, and what it printed for each trial; null for a file that cannot be copied so - an ES module.
     /// </summary>
     private static async Task<IReadOnlyList<Result>?> RunJavaScriptCopyAsync(string chosenFile, string calls, IReadOnlyList<Trial> trials,
-        IrProgram program, string node, CancellationToken cancellationToken)
+        IrProgram program, string node, CancellationToken cancellationToken) =>
+        await RanJavaScriptCopyAsync(chosenFile, calls, program, node, cancellationToken) is { } ran ? Results(ran, trials) : null;
+
+    /// <summary>
+    /// A copy of a JavaScript file's definitions alone with <paramref name="calls"/> at its end, compiled by Node under the
+    /// program's own name, and the run; null for a file that cannot be copied so - an ES module - or a copy not made.
+    /// </summary>
+    private static async Task<TargetRunResult?> RanJavaScriptCopyAsync(string chosenFile, string calls, IrProgram program, string node,
+        CancellationToken cancellationToken)
     {
         var file = Path.GetFullPath(chosenFile);
         if (await JavaScriptConfirmation.DefinitionsOfAsync(file, program, cancellationToken) is not { } kept) return null;
@@ -837,7 +845,7 @@ public static partial class AlgorithmTrial
             await File.WriteAllTextAsync(copy, string.Join("\n", kept) + "\n" + calls, new UTF8Encoding(false), cancellationToken);
             await File.WriteAllTextAsync(Path.Combine(folder, LoaderFile), JavaScriptConfirmation.Loader, new UTF8Encoding(false), cancellationToken);
 
-            var ran = await new TargetRunner().RunAsync(new TargetSpec
+            return await new TargetRunner().RunAsync(new TargetSpec
             {
                 ExecutablePath = node,
                 Arguments = $"\"{Path.Combine(folder, LoaderFile)}\" \"{file}\" \"{copy}\"",
@@ -845,8 +853,6 @@ public static partial class AlgorithmTrial
                 Timeout = JavaScriptTimeout,
                 StandardInput = "",
             }, cancellationToken);
-
-            return Results(ran, trials);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {

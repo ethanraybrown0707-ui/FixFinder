@@ -84,6 +84,7 @@ public static class Documentation
     {
         [("analysis-repeated-search", "Python")] = "set",
         [("efficiency-repeated-calls", "Python")] = "functools.cache",
+        [("efficiency-repeated-calls", "JavaScript")] = "Map",
         [("analysis-repeated-search", "Java")] = "HashSet",
         [("analysis-repeated-search", "C#")] = "HashSet",
         [("analysis-repeated-search", "JavaScript")] = "Set",

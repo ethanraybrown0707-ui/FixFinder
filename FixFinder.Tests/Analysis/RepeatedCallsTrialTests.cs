@@ -124,6 +124,66 @@ public class RepeatedCallsTrialTests : IDisposable
         Assert.Contains("and it gave back the same answers both ways", found.Found);
     }
 
+    private async Task<(IrProgram Program, string Path)?> ReadJavaScriptAsync(string code)
+    {
+        if (TargetFactory.FindOnPath("node") is null) return null;
+        var path = Path.Combine(_temp.Path, "numbers.js");
+        await File.WriteAllTextAsync(path, code);
+        return (await JavaScriptFrontend.ReadAsync([path]), path);
+    }
+
+    /// <summary>
+    /// A JavaScript fib in a CommonJS file is counted as the Python one is - 15 up to 242,785 calls, and 6 up to 26 with its
+    /// answers kept in a Map, as Node on its own counts them too; a const arrow function, whose name cannot be given another
+    /// value, is not counted.
+    /// </summary>
+    [Fact]
+    public async Task AJavaScriptRecursionIsCountedWithItsAnswersKeptInAMap()
+    {
+        const string code = """
+            function fib(n) {
+                if (n < 2) {
+                    return n;
+                }
+                return fib(n - 1) + fib(n - 2);
+            }
+
+            const lucas = (n) => (n === 0 ? 2 : n === 1 ? 1 : lucas(n - 1) + lucas(n - 2));
+
+            console.log(fib(20), lucas(10));
+            """;
+        if (await ReadJavaScriptAsync(code) is not ({ } program, { } path) || TargetFactory.FindOnPath("node") is not { } node) return;
+
+        var found = Assert.Single(await AlgorithmTrial.TryRepeatedCallsAsync(program, path, node, CancellationToken.None));
+        Assert.Equal("`fib` works out the same answers again and again", found.Title);
+        Assert.Equal("Called with 5, 10, 15, 20 and 25, `fib` was called 15, 177, 1,973, 21,891 and 242,785 times, counting the first " +
+                     "call; with its answers kept in a `Map`, 6, 11, 16, 21 and 26 times, and it gave back the same answers both ways: 5, " +
+                     "55, 610, 6765 and 75025.", found.Found);
+        Assert.Contains("new Map()", found.CorrectedExample);
+    }
+
+    /// <summary>A check of a JavaScript program puts it on the Efficiency tab too.</summary>
+    [Fact]
+    public async Task ACheckOfAJavaScriptProgramListsItUnderEfficiency()
+    {
+        const string code = """
+            function fib(n) {
+                if (n < 2) {
+                    return n;
+                }
+                return fib(n - 1) + fib(n - 2);
+            }
+
+            console.log(fib(20));
+            """;
+        if (await ReadJavaScriptAsync(code) is not (_, { } path)) return;
+
+        using var http = new FixFinderHttpClient();
+        var report = await new ProgramChecker(http, new FixSourceRegistry()) { Language = CodeLanguage.JavaScript }.CheckAsync(TargetFactory.FromFile(path));
+
+        Assert.Equal(FindingKind.Performance, Assert.Single(report.Findings, finding => finding.RuleId == AlgorithmTrial.RepeatedCallsRule).Kind);
+    }
+
     /// <summary>A check of the program puts it on the Efficiency tab, where it takes nothing off the health.</summary>
     [Fact]
     public async Task ACheckListsItUnderEfficiency()

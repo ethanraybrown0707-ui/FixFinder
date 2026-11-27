@@ -9,18 +9,20 @@ using FixFinder.Core.Execution;
 namespace FixFinder.Core.Analysis.Recognition;
 
 /// <summary>
-/// A function that works out the same answers again and again: a Python function at the top of its file, of one
-/// parameter, that calls itself twice or more and nothing else - return fib(n - 1) + fib(n - 2) - called with 5, 10, 15,
-/// 20 and 25, each call counted, and called again kept with functools.cache, which works each answer out once. When the
-/// cache gives back the same answer for every number and, at the largest, makes a tenth of the calls or fewer, the
-/// counts are a finding on the Efficiency tab.
+/// A function that works out the same answers again and again: a Python function at the top of its file, or a JavaScript
+/// one at the top of a CommonJS file, of one parameter, that calls itself twice or more and nothing else -
+/// return fib(n - 1) + fib(n - 2) - called with 5, 10, 15, 20 and 25, each call counted, and called again with each answer
+/// kept once it is worked out - by functools.cache in Python, and in a Map in JavaScript. When the kept answers give back
+/// the same answer for every number and, at the largest, a tenth of the calls or fewer, the counts are a finding on the
+/// Efficiency tab.
 /// </summary>
 /// <remarks>
 /// Only a function that calls nothing but itself, sets nothing but names of its own, and holds nothing FixFinder's reader
 /// could not read is tried: only such a function gives back the same answer for the same number however often it is
 /// called, which is what makes keeping its answers right. It is called from a copy of its file's definitions alone, as the
-/// algorithm trials call one, so the program's own code at the top of its file never runs; a call still going after 2
-/// seconds, or past 5,000,000 calls, ends the trial at the number before it.
+/// algorithm trials call one, so the program's own code at the top of its file never runs; past 5,000,000 calls, or - in
+/// Python - a call still going after 2 seconds, ends the trial at the number before it. A JavaScript function whose name
+/// cannot be given another value - const fib = n => ... - is not tried, as its calls cannot be counted through its name.
 /// </remarks>
 public static partial class AlgorithmTrial
 {
@@ -37,13 +39,17 @@ public static partial class AlgorithmTrial
 
     private const string RepeatedCallsFile = "fixfinder_repeated_calls.py";
 
+    /// <summary>How each language's trial keeps the answers worked out, as its finding says it.</summary>
+    private static string KeptWith(SourceLanguage language) =>
+        language == SourceLanguage.JavaScript ? "with its answers kept in a `Map`" : "kept with `@functools.cache`";
+
     /// <summary>
-    /// The Python functions in <paramref name="chosenFile"/> that may work out the same answers again and again: at the top
-    /// of the file, of one plain parameter, calling themselves twice or more and nothing else, setting nothing but names of
-    /// their own, and holding no statement or expression the reader could not read.
+    /// The Python or JavaScript functions in <paramref name="chosenFile"/> that may work out the same answers again and
+    /// again: at the top of the file, of one plain parameter, calling themselves twice or more and nothing else, setting
+    /// nothing but names of their own, and holding no statement or expression the reader could not read.
     /// </summary>
     public static IReadOnlyList<IrFunction> RepeatedCallCandidates(IrProgram program, string? chosenFile) =>
-        program.Language != SourceLanguage.Python ? [] :
+        program.Language is not (SourceLanguage.Python or SourceLanguage.JavaScript) ? [] :
         [.. program.Functions.Where(function =>
             // At the top of its file: written inside nothing but the file's own code, which is how the reader says it.
             function.Owner is null && function.EnclosedBy is null or IrFunction.ModuleBody && function.Name != IrFunction.ModuleBody &&
@@ -93,14 +99,30 @@ public static partial class AlgorithmTrial
 
     /// <summary>
     /// Calls each function that may work out the same answers again and again with 5 up to 25, each call counted, as it
-    /// is and kept with functools.cache, and gives back a finding for each whose cache gives back the same answers with a
-    /// tenth of the calls or fewer. Nothing when there is none to try, or the run gave nothing.
+    /// is and with its answers kept, and gives back a finding for each whose kept answers are the same with a tenth of the
+    /// calls or fewer. Nothing when there is none to try, or the run gave nothing.
     /// </summary>
-    public static async Task<IReadOnlyList<Finding>> TryRepeatedCallsAsync(IrProgram program, string? chosenFile, string python, CancellationToken cancellationToken)
+    /// <param name="runtime">What runs the program: the Python of a Python program, the Node of a JavaScript one.</param>
+    public static async Task<IReadOnlyList<Finding>> TryRepeatedCallsAsync(IrProgram program, string? chosenFile, string runtime, CancellationToken cancellationToken)
     {
         var candidates = RepeatedCallCandidates(program, chosenFile);
         if (candidates.Count == 0) return [];
 
+        var ran = program.Language == SourceLanguage.JavaScript
+            ? await RanJavaScriptCopyAsync(candidates[0].Span.File, JavaScriptRepeatedCalls([.. candidates.Select(function => function.Name)]), program,
+                runtime, cancellationToken)
+            : await RanPythonRepeatedCallsAsync(candidates, runtime, cancellationToken);
+        if (ran is null) return [];
+
+        var counted = CountedCalls(ran);
+        return [.. candidates.Select(function => RepeatedCallsFinding(function, program.Language, counted.Where(sized => sized.Function == function.Name).ToList()))
+            .OfType<Finding>()];
+    }
+
+    /// <summary>The Python trial of the functions, run on the file they are written in; null when its folder could not be made.</summary>
+    private static async Task<TargetRunResult?> RanPythonRepeatedCallsAsync(IReadOnlyList<IrFunction> candidates, string python,
+        CancellationToken cancellationToken)
+    {
         var file = candidates[0].Span.File;
         var plan = JsonSerializer.Serialize(new
         {
@@ -110,14 +132,13 @@ public static partial class AlgorithmTrial
         });
 
         var folder = Path.Combine(Path.GetTempPath(), "FixFinder-trial", Guid.NewGuid().ToString("N")[..12]);
-        TargetRunResult ran;
         try
         {
             Directory.CreateDirectory(folder);
             await File.WriteAllTextAsync(Path.Combine(folder, PlanFile), plan, new UTF8Encoding(false), cancellationToken);
             await File.WriteAllTextAsync(Path.Combine(folder, RepeatedCallsFile), RepeatedCallsScript, new UTF8Encoding(false), cancellationToken);
 
-            ran = await new TargetRunner().RunAsync(new TargetSpec
+            return await new TargetRunner().RunAsync(new TargetSpec
             {
                 ExecutablePath = python,
                 Arguments = $"-X utf8 \"{Path.Combine(folder, RepeatedCallsFile)}\" \"{file}\" \"{Path.Combine(folder, PlanFile)}\"",
@@ -128,17 +149,75 @@ public static partial class AlgorithmTrial
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return [];
+            return null;
         }
         finally
         {
             try { Directory.Delete(folder, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
-
-        var counted = CountedCalls(ran);
-        return [.. candidates.Select(function => RepeatedCallsFinding(function, counted.Where(sized => sized.Function == function.Name).ToList()))
-            .OfType<Finding>()];
     }
+
+    /// <summary>
+    /// The calls put at the end of a copy of a JavaScript file's definitions: each function's name given, in turn, to a
+    /// wrapper that counts each call and to one that keeps each answer in a Map, so its calls of itself go through them;
+    /// for each number, the calls and the answer both ways, printed as the Python trial prints them. A function whose name
+    /// cannot be given another value is passed over.
+    /// </summary>
+    private static string JavaScriptRepeatedCalls(IReadOnlyList<string> names) =>
+        JavaScriptRepeatedCallHelpers + string.Concat(names.Select(name => $$"""
+
+            ;(() => {
+                let original;
+                try {
+                    original = {{name}};
+                    {{name}} = {{name}};
+                } catch (error) {
+                    return;
+                }
+                let calls = 0;
+                const counting = function (...given) {
+                    calls += 1;
+                    if (calls > {{MostCallsCounted}}) throw new FixFinderTooManyCalls();
+                    return original.apply(this, given);
+                };
+                for (const size of [{{string.Join(", ", RepeatedCallSizes)}}]) {
+                    const record = { function: "{{name}}", size };
+                    calls = 0;
+                    {{name}} = counting;
+                    record.plain = fixFinderAttempt(counting, size);
+                    record.plain.calls = calls;
+                    const kept = new Map();
+                    const keeping = function (given) {
+                        if (kept.has(given)) return kept.get(given);
+                        const answer = counting(given);
+                        kept.set(given, answer);
+                        return answer;
+                    };
+                    calls = 0;
+                    {{name}} = keeping;
+                    record.cached = fixFinderAttempt(keeping, size);
+                    record.cached.calls = calls;
+                    {{name}} = original;
+                    fixFinderSay(record);
+                    if (!("returned" in record.plain) || !("returned" in record.cached)) break;
+                }
+            })();
+            """));
+
+    private const string JavaScriptRepeatedCallHelpers = """
+
+        class FixFinderTooManyCalls extends Error {}
+        const fixFinderSay = (outcome) => process.stdout.write("FIXFINDER-TRIAL " + JSON.stringify(outcome) + "\n");
+        const fixFinderPlain = (value) =>
+            value === null || ["number", "string", "boolean"].includes(typeof value) ? value : { repr: String(value).slice(0, 80) };
+        const fixFinderAttempt = (called, size) => {
+            try {
+                return { returned: fixFinderPlain(called(size)) };
+            } catch (error) {
+                return error instanceof FixFinderTooManyCalls ? { stopped: true } : { error: (error && error.name) || String(error) };
+            }
+        };
+        """;
 
     /// <summary>What one number did: the calls made, and the answer given back, as the function is and kept with the cache.</summary>
     private sealed record CountedSize(string Function, int Size, long Calls, string Answer, long CachedCalls, string CachedAnswer);
@@ -175,7 +254,7 @@ public static partial class AlgorithmTrial
     /// The finding for a function whose cache gave back the same answer for every number that finished, with a tenth of the
     /// calls or fewer at the largest; null for one that did not.
     /// </summary>
-    private static Finding? RepeatedCallsFinding(IrFunction function, List<CountedSize> sizes)
+    private static Finding? RepeatedCallsFinding(IrFunction function, SourceLanguage language, List<CountedSize> sizes)
     {
         if (sizes.Count == 0 || sizes.Any(size => size.Answer != size.CachedAnswer)) return null;
 
@@ -185,7 +264,7 @@ public static partial class AlgorithmTrial
         var name = function.Name;
         var found = $"Called with {Listed(sizes.Select(size => size.Size.ToString(CultureInfo.InvariantCulture)))}, `{name}` was called " +
                     $"{Listed(sizes.Select(size => size.Calls.ToString("N0", CultureInfo.InvariantCulture)))} times, counting the first call; " +
-                    $"kept with `@functools.cache`, {Listed(sizes.Select(size => size.CachedCalls.ToString("N0", CultureInfo.InvariantCulture)))} times, " +
+                    $"{KeptWith(language)}, {Listed(sizes.Select(size => size.CachedCalls.ToString("N0", CultureInfo.InvariantCulture)))} times, " +
                     $"and it gave back the same {(sizes.Count == 1 ? "answer" : "answers")} both ways: " +
                     $"{Listed(sizes.Select(size => size.Answer))}";
 

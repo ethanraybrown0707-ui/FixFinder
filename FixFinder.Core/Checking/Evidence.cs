@@ -61,7 +61,7 @@ public static class Evidence
         }
         else if (finding.RuleId == Analysis.Recognition.AlgorithmTrial.RepeatedCallsRule)
         {
-            parts.Add("the function was called with numbers of FixFinder's own and every call counted, as it is and kept with functools.cache");
+            parts.Add("the function was called with numbers of FixFinder's own and every call counted, as it is and with each answer kept once worked out");
         }
         else if (finding.RuleId == "analysis-class-too-big")
         {

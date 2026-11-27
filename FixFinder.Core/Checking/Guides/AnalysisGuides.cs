@@ -592,6 +592,21 @@ internal static class AnalysisGuides
     /// <summary>What JavaScript does when a program goes wrong, in JavaScript's own words and code.</summary>
     public static IReadOnlyList<GuideEntry> JavaScript { get; } =
     [
+        GuideFor(["efficiency-repeated-calls"], "Working out the same answer again and again",
+            "A function that calls itself twice - fib(n - 1) + fib(n - 2) - calls itself again from each of those calls, and so on down, and most of those calls are of numbers it has already worked out: the same answer is worked out over and over, and the calls grow faster than the number does.",
+            "It gives the right answer, but each step up in the number multiplies the calls, so a number only a little bigger takes far longer - long enough, soon, that the program seems to hang.",
+            "Keep each answer the first time it is worked out, and give that back when the same number comes again: a Map made once, outside the function, that the function looks in first. That is right only for a function that gives back the same answer for the same number every time and changes nothing else.",
+            """
+            const kept = new Map();
+
+            function fib(n) {
+                if (kept.has(n)) return kept.get(n);
+                const answer = n < 2 ? n : fib(n - 1) + fib(n - 2);
+                kept.set(n, answer);
+                return answer;
+            }
+            """),
+
         GuideFor(["analysis-circular-import"], "Requires that go round in a circle",
             "Node runs a module's top level the first time it is required, and while it is part way through, the module is already there for others to require - handing over its exports object as it stands, holding only what its lines so far have put in it. When two modules require each other, one of them gets the other's exports before the other has exported what it needs. A const that takes a name out of them - const { TAX_RATE } = require(\"./shop\") - holds undefined from then on; a const that keeps the whole object sees what is put in it later, unless the module replaces it with module.exports = ..., which leaves the object it kept behind. The file that is run is never started again. Node says only Accessing non-existent property, as a warning, and the program goes on - printing NaN, or failing later with is not a function.",
             "Nothing stops the program, so it gives a wrong answer - NaN, undefined - or fails somewhere far from the require that caused it.",
