@@ -664,6 +664,7 @@ public partial class MainWindow : Window
         _fileMap = [];
         CopyReportButton.IsEnabled = false;
         SaveReportButton.IsEnabled = false;
+        HealthPanel.Visibility = Visibility.Collapsed;
         SinceLastPanel.Visibility = Visibility.Collapsed;
         _comparison = null;
         _shownReport = null;
@@ -708,6 +709,10 @@ public partial class MainWindow : Window
         _tried = report.Tried;
         ShowRecognised(report.Recognised);
         ShowFileMap(report.FileMap);
+
+        // Said only after a full check: reading the code again on a save leaves out what building and running it finds.
+        HealthText.Text = $"Health {HealthScore.Of(report.Findings).Said}";
+        HealthPanel.Visibility = Visibility.Visible;
 
         // Compared before the findings are shown, so each is shown with where it stands against the last check.
         RememberThisCheck(report);
@@ -837,6 +842,7 @@ public partial class MainWindow : Window
             Tried = _tried,
             Recognised = _recognised,
             FileMap = _fileMap,
+            Health = _shownReportOnlyRead ? null : HealthScore.Of(report.Findings).Said,
             Findings = [.. _findings.Select(row => row.Finding)],
             SinceLastCheck = _comparison,
             Recurring = _recurring,
@@ -1116,9 +1122,11 @@ public partial class MainWindow : Window
         ShowRecognised(report.Recognised);
         ShowFileMap(report.FileMap);
 
-        // Only read, so it is not set beside a check that compiled and ran the program.
+        // Only read, so it is not set beside a check that compiled and ran the program, nor given a health that leaves out
+        // what running it would have found.
         _comparison = null;
         SinceLastPanel.Visibility = Visibility.Collapsed;
+        HealthPanel.Visibility = Visibility.Collapsed;
 
         ShowFindings(report.Findings);
 
@@ -1244,6 +1252,7 @@ public partial class MainWindow : Window
         _notes.Clear();
         _output.Clear();
         SinceLastPanel.Visibility = Visibility.Collapsed;
+        HealthPanel.Visibility = Visibility.Collapsed;
         _comparison = null;
         _shownReport = null;
         CopyReportButton.IsEnabled = false;

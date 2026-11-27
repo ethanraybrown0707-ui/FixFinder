@@ -148,7 +148,8 @@ internal sealed class GoTypes
                 }
             }
 
-            var span = methods.FirstOrDefault(m => m.Owner == owner)?.Span ?? _declaredAt.GetValueOrDefault(owner) ?? SourceSpan.None;
+            // Where the type is declared - type Inventory struct - or, for one declared in no file read, its first method.
+            var span = _declaredAt.GetValueOrDefault(owner) ?? methods.FirstOrDefault(m => m.Owner == owner)?.Span ?? SourceSpan.None;
             return new IrClass(span, owner, bases, fields, methods.Where(m => m.Owner == owner).ToList());
         }).ToList();
     }

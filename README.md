@@ -75,6 +75,17 @@ until the program prints what it should. FixFinder never changes your files.
    this the history keeps the idea behind each finding, as FixFinder Learn names it, never the finding or its code; a
    mistake taught only as reading what went wrong is not said, and the saved report says it under *What keeps turning
    up*.
+   The report also gives the code's **health**, out of 100: 100 with no problem found, and less for each problem - an
+   error 20, 15 or 10, a warning 8, 6 or 4, and a suggestion 2, 2 or 1, as FixFinder is certain of it, thinks it likely
+   or thinks it possible - never below 0, with efficiency findings taking nothing off, and with what each kind took
+   off: *Health 67 out of 100: 1 error FixFinder is certain of took off 20; 2 warnings FixFinder thinks likely took off
+   12, 6 each; 1 suggestion FixFinder thinks possible took off 1.* The points are FixFinder's own choice, not worked out
+   from any study of programs. They follow what each severity means: an error - the program fails, or gives the wrong
+   answer - takes off most, a warning - it works, but not reliably, or not as intended - two fifths of that, and a
+   suggestion - it works, and there is a better way - a tenth; a finding thought likely takes off three quarters of
+   what a certain one does and one thought possible half, rounded to whole points; five certain errors take a program
+   to 0. It is given after a full check, not when the code is only read again on a save, and in the saved report and
+   on the command line, as a `health:` line, too.
 5. **Keep working on it.** Once a program chosen as a file has been checked, FixFinder reads its code again every time it
    is saved - the logic patterns and every analysis - and updates the report. It does not compile or run the program
    then, and the report says so; press **Check again** to do that. Code that does not read as its language at all is
@@ -1072,6 +1083,15 @@ programs beside its broken ones - and is not counted. It is said in Python, Java
 the copies is in the file checked. Read a file at a time, Python 3.13's own library held 29 groups of copies in its
 1,093 files and the npm that comes with Node 4 in its 1,115; each one looked at was a true copy - `readable`, `writable`
 and `seekable` in `_pyio.py`, the same 4 lines each, and `xmlreader.py`'s `getNameByQName` and `getQNameByName`.
+
+A **class too big** - one of 250 methods or more - is a suggestion on the line the class starts on: *`Inventory` has
+250 methods, and 250 or more make a class too big: a class that size is usually doing the work of several, and each
+part of it is harder to find, change and test on its own*. 250 is the number chosen for FixFinder, not worked out from
+any study of programs. It is said in Python, Java, C#, JavaScript, C++ and Go - where a type's methods are its by their
+receiver - for a class in the file checked. Its constructors and destructor are not counted, nor in C# a property's or
+an indexer's accessors or an operator, which C# declares apart from its methods; a C++ method only declared in its
+class and written after it is not counted either, and a C# partial class written across several files is counted part
+by part.
 
 When some of a file's JUnit, unittest, pytest, doctest or node:test tests fail, or a program's own asserts or console.asserts, FixFinder looks for **the change that makes every test pass**,
 in the code the tests call: the file their failures were raised through, or else the program's own module or class the
@@ -2404,7 +2424,7 @@ A check of a program does all of this, as far as its language allows - Python, J
    by its own language's parser, and recognises from the same reading which of 16 algorithms a function is written as,
    and from their names which pairs of functions are meant to undo each other; for Python and CommonJS JavaScript, it
    also plays out the program's imports from the file that is run, to find any that go round in a circle and stop it, or
-   leave a name undefined; and it finds functions written twice.
+   leave a name undefined; and it finds functions written twice, and classes of 250 methods or more.
 5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
    should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only
    when the copy no longer fails that way, and prints what it should when that was given. Up to 5 fixes have what they

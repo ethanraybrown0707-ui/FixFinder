@@ -975,6 +975,14 @@
                 </Grid>
 
                 <StackPanel Grid.Row="2">
+                    <!-- How healthy the code is, out of 100, with what each kind of problem found took off. -->
+                    <Border x:Name="HealthPanel" AutomationProperties.AutomationId="HealthPanel" Visibility="Collapsed"
+                            Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
+                            BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,0,0,12">
+                        <TextBlock x:Name="HealthText" AutomationProperties.AutomationId="HealthText"
+                                   TextWrapping="Wrap" FontSize="12.5" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                    </Border>
+
                     <!-- This check beside the last one of the same program: what was fixed, what is new, what is still there. -->
                     <Border x:Name="SinceLastPanel" AutomationProperties.AutomationId="SinceLastPanel" Visibility="Collapsed"
                             Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"

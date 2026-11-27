@@ -41,6 +41,12 @@ public sealed record ReportPage
     /// <summary>How the program's own files use each other, a line for each that uses others.</summary>
     public IReadOnlyList<string> FileMap { get; init; } = [];
 
+    /// <summary>
+    /// How healthy the code is, as HealthScore says it - given only for a full check, as reading the code again on a save
+    /// leaves out what building and running the program finds.
+    /// </summary>
+    public string? Health { get; init; }
+
     public required IReadOnlyList<Finding> Findings { get; init; }
 
     /// <summary>This check beside the last check of the same program, when there was one.</summary>
@@ -79,7 +85,9 @@ public sealed record ReportPage
             .Append("<dt>Syntax</dt><dd>").Append(Prose(SyntaxSummary)).Append("</dd>\n")
             .Append("<dt>Logic</dt><dd>").Append(Prose(LogicSummary)).Append("</dd>\n");
         if (HowItRan is { Length: > 0 } how) page.Append("<dt>How it was checked</dt><dd>").Append(Prose(how)).Append("</dd>\n");
-        page.Append("<dt>Found</dt><dd>").Append(Text(Counted(problems, efficiency.Count))).Append("</dd>\n</dl>\n</section>\n");
+        page.Append("<dt>Found</dt><dd>").Append(Text(Counted(problems, efficiency.Count))).Append("</dd>\n");
+        if (Health is { } health) page.Append("<dt>Health</dt><dd>").Append(Text(health)).Append("</dd>\n");
+        page.Append("</dl>\n</section>\n");
 
         if (SinceLastCheck is { } comparison) AppendComparison(page, comparison);
 

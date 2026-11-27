@@ -59,6 +59,10 @@ public static class Evidence
         {
             parts.Add("the functions' lines were compared one by one, with their own names set aside, and are the same");
         }
+        else if (finding.RuleId == "analysis-class-too-big")
+        {
+            parts.Add("the class's methods were counted, its constructors and destructor left out");
+        }
         else if (finding.RuleId == "analysis-circular-import")
         {
             parts.Add("the program's imports were played out from the file that is run, in the order " +
@@ -103,6 +107,7 @@ public static class Evidence
         { Witness.Length: > 0 } => "failing input worked out",
         { RuleId: "analysis-circular-import" } => "imports followed from the file that is run",
         { RuleId: "analysis-duplicate-function" } => "functions compared line by line",
+        { RuleId: "analysis-class-too-big" } => "methods counted",
         { RuleId: "analysis-same-answer-always" } => "every return read",
         { FoundBy.Length: > 0 } => "values followed through the code",
         _ => "pattern only",
