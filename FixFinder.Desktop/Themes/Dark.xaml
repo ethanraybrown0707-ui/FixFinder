@@ -9,22 +9,22 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <SolidColorBrush x:Key="PageBrush" Color="#030409"/>
-    <SolidColorBrush x:Key="CardBrush" Color="#13161D"/>
-    <SolidColorBrush x:Key="SubtleBrush" Color="#1A1D26"/>
-    <SolidColorBrush x:Key="CardBorderBrush" Color="#2A2E3A"/>
-    <SolidColorBrush x:Key="ControlBorderBrush" Color="#3B404E"/>
-    <SolidColorBrush x:Key="HoverBrush" Color="#202430"/>
-    <SolidColorBrush x:Key="PressedBrush" Color="#282D3E"/>
+    <SolidColorBrush x:Key="PageBrush" Color="#010409"/>
+    <SolidColorBrush x:Key="CardBrush" Color="#10161D"/>
+    <SolidColorBrush x:Key="SubtleBrush" Color="#161D27"/>
+    <SolidColorBrush x:Key="CardBorderBrush" Color="#252E3B"/>
+    <SolidColorBrush x:Key="ControlBorderBrush" Color="#35404F"/>
+    <SolidColorBrush x:Key="HoverBrush" Color="#1B2431"/>
+    <SolidColorBrush x:Key="PressedBrush" Color="#212D3F"/>
 
-    <SolidColorBrush x:Key="TextBrush" Color="#F2F4F9"/>
-    <SolidColorBrush x:Key="SecondaryTextBrush" Color="#B6B9C0"/>
-    <SolidColorBrush x:Key="HintBrush" Color="#8A8D97"/>
+    <SolidColorBrush x:Key="TextBrush" Color="#F0F4F9"/>
+    <SolidColorBrush x:Key="SecondaryTextBrush" Color="#B3B9C0"/>
+    <SolidColorBrush x:Key="HintBrush" Color="#868D98"/>
 
-    <SolidColorBrush x:Key="AccentBrush" Color="#7B96EB"/>
-    <SolidColorBrush x:Key="AccentHoverBrush" Color="#97ACEF"/>
-    <SolidColorBrush x:Key="AccentPressedBrush" Color="#5E80E6"/>
-    <SolidColorBrush x:Key="AccentSoftBrush" Color="#1D2745"/>
+    <SolidColorBrush x:Key="AccentBrush" Color="#5798F0"/>
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#7AAEF3"/>
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#3283EC"/>
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="#102847"/>
 
     <SolidColorBrush x:Key="ErrorBrush" Color="#FF8A80"/>
     <SolidColorBrush x:Key="ErrorSoftBrush" Color="#2E1A1C"/>
@@ -32,9 +32,9 @@
     <SolidColorBrush x:Key="WarningBrush" Color="#F4B267"/>
     <SolidColorBrush x:Key="WarningSoftBrush" Color="#2C2318"/>
     <SolidColorBrush x:Key="WarningBorderBrush" Color="#584428"/>
-    <SolidColorBrush x:Key="SuggestionBrush" Color="#7B96EB"/>
-    <SolidColorBrush x:Key="SuggestionSoftBrush" Color="#1C2541"/>
-    <SolidColorBrush x:Key="SuggestionBorderBrush" Color="#313E69"/>
+    <SolidColorBrush x:Key="SuggestionBrush" Color="#5798F0"/>
+    <SolidColorBrush x:Key="SuggestionSoftBrush" Color="#102643"/>
+    <SolidColorBrush x:Key="SuggestionBorderBrush" Color="#1F3F6B"/>
     <SolidColorBrush x:Key="SuccessBrush" Color="#6FD18F"/>
     <SolidColorBrush x:Key="SuccessSoftBrush" Color="#16281F"/>
     <SolidColorBrush x:Key="SuccessBorderBrush" Color="#2B4F39"/>
@@ -48,13 +48,13 @@
     <SolidColorBrush x:Key="DiffAddedBrush" Color="#102A1C"/>
     <SolidColorBrush x:Key="DiffAddedTextBrush" Color="#8FE0A8"/>
     <SolidColorBrush x:Key="DiffAddedMarkBrush" Color="#1C5334"/>
-    <SolidColorBrush x:Key="DiffGutterBrush" Color="#797D89"/>
+    <SolidColorBrush x:Key="DiffGutterBrush" Color="#747D8A"/>
 
-    <SolidColorBrush x:Key="CodeBrush" Color="#030409"/>
-    <SolidColorBrush x:Key="CodeTextBrush" Color="#F0F3FD"/>
-    <SolidColorBrush x:Key="ConsoleBrush" Color="#030409"/>
-    <SolidColorBrush x:Key="ConsoleTextBrush" Color="#F0F3FD"/>
+    <SolidColorBrush x:Key="CodeBrush" Color="#010409"/>
+    <SolidColorBrush x:Key="CodeTextBrush" Color="#ECF3FE"/>
+    <SolidColorBrush x:Key="ConsoleBrush" Color="#010409"/>
+    <SolidColorBrush x:Key="ConsoleTextBrush" Color="#ECF3FE"/>
     <SolidColorBrush x:Key="ConsoleErrorBrush" Color="#FCA5A5"/>
-    <SolidColorBrush x:Key="ConsoleSelectedBrush" Color="#171C2F"/>
+    <SolidColorBrush x:Key="ConsoleSelectedBrush" Color="#0F1C30"/>
 
 </ResourceDictionary>

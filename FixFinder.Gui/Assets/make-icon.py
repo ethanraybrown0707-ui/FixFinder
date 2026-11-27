@@ -21,9 +21,9 @@ SUPERSAMPLE = 8
 
 # The same stops as Styles.xaml's LogoTileBrush: FixFinder's blue with 15% white, the blue, and the blue with 55% black.
 BLEND = [
-    (0.00, (0x5E, 0x80, 0xE6)),
-    (0.45, (0x42, 0x69, 0xE2)),
-    (1.00, (0x1E, 0x2F, 0x66)),
+    (0.00, (0x32, 0x83, 0xEC)),
+    (0.45, (0x0E, 0x6C, 0xE9)),
+    (1.00, (0x07, 0x30, 0x69)),
 ]
 
 WHITE = (255, 255, 255, 255)

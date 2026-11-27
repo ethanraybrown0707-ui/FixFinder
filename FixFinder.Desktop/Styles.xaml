@@ -7,15 +7,17 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
-        FixFinder's three colours - its blue, white and black, measured from its first logo - and blends of them, which
-        is every colour FixFinder's own look is made of: each theme's colours are the three mixed in measured amounts.
+        FixFinder's three colours - its blue, white and black - and blends of them, which is every colour FixFinder's
+        own look is made of: each theme's colours are the three mixed in measured amounts. The blue is the deep blue of
+        the logo's right-hand stroke, #0F70F3, made 4% darker, so text in it is as easy to read as it was in the blue
+        of FixFinder's first logo, #4269E2: 4.84 to 1 against white, where that was 4.83.
         The colours that carry a meaning are the exception: red for an error, amber for a warning, green for what
         worked, and the before and after of a fix.
     -->
-    <Color x:Key="BrandBlue">#4269E2</Color>
-    <Color x:Key="BrandLightBlue">#A0B4F0</Color>
-    <Color x:Key="BrandPaleBlue">#5E80E6</Color>
-    <Color x:Key="BrandDarkBlue">#1E2F66</Color>
+    <Color x:Key="BrandBlue">#0E6CE9</Color>
+    <Color x:Key="BrandLightBlue">#86B5F3</Color>
+    <Color x:Key="BrandPaleBlue">#3283EC</Color>
+    <Color x:Key="BrandDarkBlue">#073069</Color>
 
     <LinearGradientBrush x:Key="BrandBlendBrush" StartPoint="0,0" EndPoint="1,0">
         <GradientStop Offset="0.00" Color="{StaticResource BrandDarkBlue}"/>
