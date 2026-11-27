@@ -1,5 +1,5 @@
 <!--
-    The styles FixFinder and FixFinder Learn are both built from: the brand colours and logo, the fonts, text, cards,
+    The styles FixFinder and FixFinder Learn are both built from: the brand colours, the fonts, text, cards,
     buttons, input boxes and code blocks. Their colours come from Themes\Light.xaml or Themes\Dark.xaml, whichever
     Theme.Apply has merged in, and are asked for with DynamicResource so a change of theme repaints them at once.
 -->
@@ -7,9 +7,10 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
-        The logo's three colours - its blue, white and black - and blends of them, which is every colour FixFinder's own
-        look is made of: each theme's colours are the three mixed in measured amounts. The colours that carry a meaning
-        are the exception: red for an error, amber for a warning, green for what worked, and the before and after of a fix.
+        FixFinder's three colours - its blue, white and black, measured from its first logo - and blends of them, which
+        is every colour FixFinder's own look is made of: each theme's colours are the three mixed in measured amounts.
+        The colours that carry a meaning are the exception: red for an error, amber for a warning, green for what
+        worked, and the before and after of a fix.
     -->
     <Color x:Key="BrandBlue">#4269E2</Color>
     <Color x:Key="BrandLightBlue">#A0B4F0</Color>
@@ -28,31 +29,6 @@
         <GradientStop Offset="0.45" Color="{StaticResource BrandBlue}"/>
         <GradientStop Offset="1.00" Color="{StaticResource BrandDarkBlue}"/>
     </LinearGradientBrush>
-
-    <SolidColorBrush x:Key="LogoBlueBrush" Color="{StaticResource BrandBlue}"/>
-
-    <!--
-        FixFinder's logo on its black tile, on the same 100-unit square as Assets\make-icon.py draws its icons: a white
-        chevron either side of a diamond, its upper half blue and its lower half white, with the tile's black between them.
-    -->
-    <DrawingImage x:Key="LogoImage">
-        <DrawingImage.Drawing>
-            <DrawingGroup>
-                <GeometryDrawing Brush="Black">
-                    <GeometryDrawing.Geometry>
-                        <RectangleGeometry Rect="4,4,92,92" RadiusX="24" RadiusY="24"/>
-                    </GeometryDrawing.Geometry>
-                </GeometryDrawing>
-                <GeometryDrawing Geometry="M 27.30,37.12 L 18.55,49.95 L 27.30,62.78 M 72.70,37.12 L 81.45,49.95 L 72.70,62.78">
-                    <GeometryDrawing.Pen>
-                        <Pen Brush="White" Thickness="4.65" StartLineCap="Round" EndLineCap="Round" LineJoin="Round"/>
-                    </GeometryDrawing.Pen>
-                </GeometryDrawing>
-                <GeometryDrawing Brush="{StaticResource LogoBlueBrush}" Geometry="M 50,28.40 L 61.45,50 L 50,44.90 L 38.55,50 Z"/>
-                <GeometryDrawing Brush="White" Geometry="M 38.55,50 L 50,55.10 L 61.45,50 L 50,71.55 Z"/>
-            </DrawingGroup>
-        </DrawingImage.Drawing>
-    </DrawingImage>
 
     <FontFamily x:Key="CodeFont">Cascadia Mono, Consolas</FontFamily>
     <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>

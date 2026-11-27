@@ -429,7 +429,7 @@ public sealed record ReportPage
         typeof(ReportPage).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "";
 
     /// <summary>
-    /// FixFinder's own colours, light and dark, as its window has them - the logo's blue, white and black and blends of them,
+    /// FixFinder's own colours, light and dark, as its window has them - its blue, white and black and blends of them,
     /// with red, amber and green for what an error, a warning and a success are; printed, always light.
     /// </summary>
     private const string Style = """

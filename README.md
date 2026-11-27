@@ -2676,8 +2676,10 @@ even when it is signed. `run-fixfinder.cmd` starts the DLL through `dotnet.exe`,
 dependable way in. Each project signs its Debug build - its DLL, and the launcher exe beside it - with `sign-for-wdac.ps1`
 when a code-signing certificate is present, and does nothing when there is not one, as on CI.
 
-The logo is drawn by `FixFinder.Gui\Assets\make-icon.py`, which draws every icon size at its own scale so the small ones
-stay sharp, and fills its whole square at every size, so on the desktop it is as big as the icons beside it.
+The logo is the picture in `FixFinder.Gui\Assets\logo-given.png`. `FixFinder.Gui\Assets\make-icon.py` sets it on a black
+rounded tile at every icon size, shrinking it from that picture at each size's own scale - larger at the small sizes, so
+they can still be made out - and the tile fills its whole square at every size, so on the desktop it is as big as the
+icons beside it. The same script draws FixFinder Learn's book.
 
 ## Licence
 
