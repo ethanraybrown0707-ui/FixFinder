@@ -83,6 +83,7 @@ public static class Documentation
     private static readonly Dictionary<(string Rule, string Language), string> LookedUpAs = new()
     {
         [("analysis-repeated-search", "Python")] = "set",
+        [("efficiency-repeated-calls", "Python")] = "functools.cache",
         [("analysis-repeated-search", "Java")] = "HashSet",
         [("analysis-repeated-search", "C#")] = "HashSet",
         [("analysis-repeated-search", "JavaScript")] = "Set",

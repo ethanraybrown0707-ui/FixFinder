@@ -2348,6 +2348,18 @@ which the check for a collection changed while looping covers. No change is offe
 `ArrayDeque` nor a `Queue` can be read by position - so the guide shows what to use, and whether it fits is left to
 whoever knows the rest of the program. JavaScript's `shift()` is left out, since how long it takes is up to the engine rather than the language.
 
+A Python function that **works out the same answers again and again** is reported too: one at the top of its file, of
+one parameter, that calls itself twice or more and nothing else - `return fib(n - 1) + fib(n - 2)` - and sets nothing
+but names of its own, so that it gives back the same answer for the same number every time. It is called with 5, 10, 15,
+20 and 25 from a copy of its file's definitions alone, as the algorithm trials call one, each call counted - as it is,
+and again kept with `functools.cache`, which works each answer out once - and it is reported only when the cache gave
+back the same answers and, at the largest number both finished, made a tenth of the calls or fewer: *Called with 5, 10,
+15, 20 and 25, `fib` was called 15, 177, 1,973, 21,891 and 242,785 times, counting the first call; kept with
+`@functools.cache`, 6, 11, 16, 21 and 26 times, and it gave back the same answers both ways: 5, 55, 610, 6765 and
+75025.* A call still going after 2 seconds, or past 5,000,000 calls, ends the trial at the number before it. The guide
+shows `@functools.cache` on the line above `def`, with `import functools`; no change is made, as keeping a function's
+answers is right only for a function whose answers never change, which whoever knows the program can say.
+
 Within a session, **only what an edit could change is analysed again**. FixFinder keeps what each function's analysis
 found, filed under everything that analysis depends on: the function's own lines and where they are; every function it
 can call - found by name, so a call through any object still counts, and by following its calls through what its module

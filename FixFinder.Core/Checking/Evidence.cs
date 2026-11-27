@@ -59,6 +59,10 @@ public static class Evidence
         {
             parts.Add("the functions' lines were compared one by one, with their own names set aside, and are the same");
         }
+        else if (finding.RuleId == Analysis.Recognition.AlgorithmTrial.RepeatedCallsRule)
+        {
+            parts.Add("the function was called with numbers of FixFinder's own and every call counted, as it is and kept with functools.cache");
+        }
         else if (finding.RuleId == "analysis-class-too-big")
         {
             parts.Add("the class's methods were counted, its constructors and destructor left out");
@@ -108,6 +112,7 @@ public static class Evidence
         { RuleId: "analysis-circular-import" } => "imports followed from the file that is run",
         { RuleId: "analysis-duplicate-function" } => "functions compared line by line",
         { RuleId: "analysis-class-too-big" } => "methods counted",
+        { RuleId: Analysis.Recognition.AlgorithmTrial.RepeatedCallsRule } => "calls counted",
         { RuleId: "analysis-same-answer-always" } => "every return read",
         { FoundBy.Length: > 0 } => "values followed through the code",
         _ => "pattern only",

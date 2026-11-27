@@ -2253,6 +2253,16 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 triedWrong = tried.Findings.Count;
             }
 
+            // A Python function that may work out the same answers again and again is called with numbers of FixFinder's
+            // own, each call counted, as it is and kept with functools.cache.
+            if (!_codeOnly && Analysis.Recognition.AlgorithmTrial.RepeatedCallCandidates(program, launch.ChosenFile).Count > 0 &&
+                PythonInterpreter(launch) is { } repeatedCallsPython)
+            {
+                Progress?.Invoke(CheckLane.Logic, "Counting the calls of functions that call themselves...");
+                foreach (var repeated in await Analysis.Recognition.AlgorithmTrial.TryRepeatedCallsAsync(program, launch.ChosenFile, repeatedCallsPython, cancellationToken))
+                    Add(repeated);
+            }
+
             foreach (var finding in findings)
             {
                 // A change an analysis worked out is checked the way a pattern's is: a copy of the file with it has to compile.

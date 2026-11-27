@@ -202,6 +202,25 @@ internal static class LogicGuides
             + "only after the loop has looked everywhere.",
             ""),
 
+        GuideFor(["efficiency-repeated-calls"], "Working out the same answer again and again",
+            "A function that calls itself twice - fib(n - 1) + fib(n - 2) - calls itself again from each of those calls, and "
+            + "so on down, and most of those calls are of numbers it has already worked out: the same answer is worked out "
+            + "over and over, and the calls grow faster than the number does.",
+            "It gives the right answer, but each step up in the number multiplies the calls, so a number only a little bigger "
+            + "takes far longer - long enough, soon, that the program seems to hang.",
+            "Keep each answer the first time it is worked out, and give that back when the same number comes again. In Python, "
+            + "put @functools.cache on the line above def, with import functools at the top of the file. That is right only "
+            + "for a function that gives back the same answer for the same number every time and changes nothing else.",
+            """
+            import functools
+
+            @functools.cache
+            def fib(n):
+                if n < 2:
+                    return n
+                return fib(n - 1) + fib(n - 2)
+            """),
+
         GuideFor(["analysis-repeated-search"], "Searching from the start on every pass",
             "Looking for something in a list, or in a piece of text, means going through it from the start until it "
             + "turns up. Doing that inside a loop means doing it again on every pass, so when the loop and the list both "
