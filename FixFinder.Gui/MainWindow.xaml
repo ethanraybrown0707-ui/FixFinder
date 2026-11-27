@@ -1109,6 +1109,21 @@
                     </ItemsControl>
                 </Expander>
 
+                <!-- How complex the most complex functions of the file checked are, by McCabe's count: closed until opened. -->
+                <Expander x:Name="ComplexityExpander" AutomationProperties.AutomationId="ComplexityExpander" IsExpanded="False" Visibility="Collapsed"
+                          Margin="0,0,0,10" Foreground="{DynamicResource SecondaryTextBrush}"
+                          Header="How complex each function is"
+                          ToolTip="McCabe's cyclomatic complexity: 1 for the function, and 1 more for each if, loop, case of a switch, catch and conditional expression in it, and for each &amp;&amp; and || - and and or in Python.">
+                    <ItemsControl x:Name="ComplexityList" AutomationProperties.AutomationId="ComplexityList" Margin="0,6,0,0" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock desktop:InlineCode.Text="{Binding}" FontSize="12.5" Margin="0,0,0,4" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextBrush}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
+
                 <!-- How the program's own files use each other, for a program of more than one: closed until opened. -->
                 <Expander x:Name="FileMapExpander" AutomationProperties.AutomationId="FileMapExpander" IsExpanded="False" Visibility="Collapsed"
                           Margin="0,0,0,10" Foreground="{DynamicResource SecondaryTextBrush}"

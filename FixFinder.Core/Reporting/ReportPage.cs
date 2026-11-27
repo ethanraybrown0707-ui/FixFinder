@@ -41,6 +41,9 @@ public sealed record ReportPage
     /// <summary>How the program's own files use each other, a line for each that uses others.</summary>
     public IReadOnlyList<string> FileMap { get; init; } = [];
 
+    /// <summary>The most complex functions of the file checked, by McCabe's cyclomatic complexity, most complex first.</summary>
+    public IReadOnlyList<string> Complexity { get; init; } = [];
+
     /// <summary>
     /// How healthy the code is, as HealthScore says it - given only for a full check, as reading the code again on a save
     /// leaves out what building and running the program finds.
@@ -141,6 +144,16 @@ public sealed record ReportPage
             page.Append("<section class=\"files\">\n<h2>How the files use each other</h2>\n")
                 .Append("<p class=\"intro\">Each of the program's own files that uses others of them, named from the folder of the file checked.</p>\n<ul>\n");
             foreach (var uses in FileMap) page.Append("<li>").Append(Prose(uses)).Append("</li>\n");
+            page.Append("</ul>\n</section>\n");
+        }
+
+        if (Complexity.Count > 0)
+        {
+            page.Append("<section class=\"complexity\">\n<h2>How complex each function is</h2>\n")
+                .Append("<p class=\"intro\">McCabe's cyclomatic complexity of the most complex functions in the file checked: 1 for the ")
+                .Append("function, and 1 more for each if, loop, case of a switch, catch and conditional expression in it, and for each ")
+                .Append("<code>&amp;&amp;</code> and <code>||</code> - <code>and</code> and <code>or</code> in Python.</p>\n<ul>\n");
+            foreach (var complex in Complexity) page.Append("<li>").Append(Prose(complex)).Append("</li>\n");
             page.Append("</ul>\n</section>\n");
         }
 

@@ -230,6 +230,22 @@ most 200 - and a library the program gets from pip or npm is none of its own fil
 saved report and on the command line, as `uses:` lines, too. A program of one file, one none of whose files uses
 another, and a program in any other language have none.
 
+**How complex each function is**, under the notes too, lists the most complex functions of the file checked - at most 5,
+most complex first - by McCabe's cyclomatic complexity: 1 for the function, and 1 more for each place in it where the
+way it goes is decided. That is each `if`, and each `else if` or `elif`; each loop; each `case` of a switch, its
+`default` left out; each `catch` or `except`; each conditional expression, `a ? b : c` or Python's `b if a else c`; and
+each `&&` and `||`, or `and` and `or` in Python - a chained comparison, `0 <= mark <= 100`, being the `and` Python reads
+it as, `0 <= mark and mark <= 100`: *`grade` on line 1: 10 - 3 `if`s, 2 loops, 1 catch, 1 conditional expression and 2
+`and`s and `or`s*. The code outside any function is counted as a function of its own, and a function that decides
+nothing is not listed. It is counted from the same reading of the code as the analyses, in Python, Java, C#, JavaScript,
+Go, C and C++: a function written inside another is counted on its own, not into the one around it; a lambda is not
+counted; a `for (;;)` with no condition decides nothing; a Python comprehension's own `for` and `if` are not counted; a
+Python `match` is not read, nor anything inside it; and a Python class written inside another class, or a method a class
+defines inside an `if`, is not read, so it is not listed. Over Python 3.13's own library, read a file at a time, 22,503
+of the 22,667 functions FixFinder read were counted exactly as a count made with Python's own `ast` module to the same
+rule; 160 others differed only by their chained comparisons, which that count left as comparisons; and the last 4 hold a
+`match`. It is closed until opened, and in a saved report and on the command line, as `complexity:` lines, too.
+
 Pasted code is saved exactly as pasted, as a file of its own in a folder of its own in the temp folder - a Java class as
 the file of its name, under the folders of its `package` - and checked like any program, so the lines the report names are
 the pasted lines. It is checked on its own: another file of its program that it imports, or a file it reads, is not there
@@ -2435,7 +2451,8 @@ A check of a program does all of this, as far as its language allows - Python, J
    by its own language's parser, and recognises from the same reading which of 16 algorithms a function is written as,
    and from their names which pairs of functions are meant to undo each other; for Python and CommonJS JavaScript, it
    also plays out the program's imports from the file that is run, to find any that go round in a circle and stop it, or
-   leave a name undefined; and it finds functions written twice, and classes of 250 methods or more.
+   leave a name undefined; it finds functions written twice, and classes of 250 methods or more; and it works out
+   how complex each function is.
 5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
    should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only
    when the copy no longer fails that way, and prints what it should when that was given. Up to 5 fixes have what they

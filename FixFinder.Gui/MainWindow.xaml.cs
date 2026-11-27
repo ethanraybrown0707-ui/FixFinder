@@ -109,6 +109,9 @@ public partial class MainWindow : Window
     /// <summary>How the program's own files use each other, as the last check said it, for the saved report.</summary>
     private IReadOnlyList<string> _fileMap = [];
 
+    /// <summary>The most complex functions of the file checked, as the last check said them, for the saved report.</summary>
+    private IReadOnlyList<string> _complexity = [];
+
     /// <summary>The files naming a project's libraries that a folder's check has already asked about, or restored, so each is done once.</summary>
     private readonly HashSet<string> _manifestsSeenInFolder = new(StringComparer.OrdinalIgnoreCase);
 
@@ -677,6 +680,8 @@ public partial class MainWindow : Window
         _recognised = [];
         FileMapExpander.Visibility = Visibility.Collapsed;
         _fileMap = [];
+        ComplexityExpander.Visibility = Visibility.Collapsed;
+        _complexity = [];
         CopyReportButton.IsEnabled = false;
         SaveReportButton.IsEnabled = false;
         HealthPanel.Visibility = Visibility.Collapsed;
@@ -698,6 +703,14 @@ public partial class MainWindow : Window
         RecognisedList.ItemsSource = recognised.Select(seen => new AlgorithmSeenRow(seen)).ToList();
         RecognisedExpander.Visibility = recognised.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         _recognised = recognised;
+    }
+
+    /// <summary>Lists the most complex functions of the file checked, closed until opened; hidden when none of them decides anything.</summary>
+    private void ShowComplexity(IReadOnlyList<string> complexity)
+    {
+        ComplexityList.ItemsSource = complexity;
+        ComplexityExpander.Visibility = complexity.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _complexity = complexity;
     }
 
     /// <summary>Lists how the program's own files use each other, under the notes, closed until opened; hidden for a program of one file.</summary>
@@ -731,6 +744,7 @@ public partial class MainWindow : Window
         _tried = report.Tried;
         ShowRecognised(report.Recognised);
         ShowFileMap(report.FileMap);
+        ShowComplexity(report.Complexity);
 
         // Said only after a full check: reading the code again on a save leaves out what building and running it finds.
         HealthText.Text = $"Health {HealthScore.Of(report.Findings).Said}";
@@ -866,6 +880,7 @@ public partial class MainWindow : Window
             Tried = _tried,
             Recognised = _recognised,
             FileMap = _fileMap,
+            Complexity = _complexity,
             Health = _shownReportOnlyRead ? null : HealthScore.Of(report.Findings).Said,
             Findings = [.. _findings.Select(row => row.Finding)],
             SinceLastCheck = _comparison,
@@ -1147,6 +1162,7 @@ public partial class MainWindow : Window
         _tried = [];
         ShowRecognised(report.Recognised);
         ShowFileMap(report.FileMap);
+        ShowComplexity(report.Complexity);
 
         // Only read, so it is not set beside a check that compiled and ran the program, nor given a health that leaves out
         // what running it would have found.

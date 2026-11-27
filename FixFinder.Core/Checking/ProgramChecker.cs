@@ -37,6 +37,12 @@ public sealed record CheckReport(
     public IReadOnlyList<Analysis.Recognition.AlgorithmSeen> Recognised { get; init; } = [];
 
     /// <summary>
+    /// The most complex functions of the file checked, by McCabe's cyclomatic complexity, most complex first, each in words -
+    /// `grade` on line 12: 7 - 3 `if`s, 2 loops and 1 `and` or `or`; nothing when no function in it decides anything.
+    /// </summary>
+    public IReadOnlyList<string> Complexity { get; init; } = [];
+
+    /// <summary>
     /// How the program's own files use each other, a line for each that uses others - `main.py` uses `grades.py` - for a
     /// Python, JavaScript or TypeScript program of more than one file; nothing otherwise.
     /// </summary>
@@ -95,6 +101,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// <summary>The inputs tried, one for each way through the program that what is typed decides, and what each printed.</summary>
     private IReadOnlyList<Analysis.Dynamic.InputTried> _tried = [];
     private IReadOnlyList<Analysis.Recognition.AlgorithmSeen> _recognised = [];
+
+    /// <summary>The most complex functions of the file checked, in words, worked out from the same reading of the code.</summary>
+    private IReadOnlyList<string> _complexity = [];
 
     /// <summary>How the program's own files use each other, in words, read when its files are found.</summary>
     private IReadOnlyList<string> _fileMap = [];
@@ -191,7 +200,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             if (_reusedFunctions > 0)
                 logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
 
-            return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, AsPrinted(run)) { Tried = _tried, Recognised = _recognised, FileMap = _fileMap };
+            return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, AsPrinted(run)) { Tried = _tried, Recognised = _recognised, FileMap = _fileMap, Complexity = _complexity };
         }
     }
 
@@ -2022,7 +2031,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             if (_reusedFunctions > 0)
                 logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
 
-            return new CheckReport(Sorted(_findings), [.. _notes], "Not compiled or run - read as it was saved", logicSummary, null) { Recognised = _recognised, FileMap = _fileMap };
+            return new CheckReport(Sorted(_findings), [.. _notes], "Not compiled or run - read as it was saved", logicSummary, null) { Recognised = _recognised, FileMap = _fileMap, Complexity = _complexity };
         }
     }
 
@@ -2172,6 +2181,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
             // What the code looks like it is meant to do, read from the same code: a binary search, a bubble sort.
             _recognised = Analysis.Recognition.AlgorithmRecognition.Of(program);
+
+            // How complex each function of the file checked is, from the same reading: its ifs, loops, cases and the rest.
+            _complexity = Analysis.Measures.Complexity.MostComplex(program, launch.ChosenFile);
             if (Cache is { LastRun: { Reused: > 0 } run })
             {
                 Log?.Invoke($"{Count(run.Reused, "function")} had not changed since the last check, so what was found in them then was used again; " +

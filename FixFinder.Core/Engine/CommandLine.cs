@@ -119,6 +119,7 @@ public static class CommandLine
         foreach (var seen in report.Recognised)
             await errors.WriteLineAsync($"algorithm: {Path.GetFileName(seen.File)}:{seen.Line}: {seen.Said}" + (seen.Tried is { } tried ? $" {tried}" : ""));
         foreach (var uses in report.FileMap) await errors.WriteLineAsync($"uses: {uses}");
+        foreach (var complex in report.Complexity) await errors.WriteLineAsync($"complexity: {complex}");
         await errors.WriteLineAsync($"syntax: {report.SyntaxSummary}");
         await errors.WriteLineAsync($"logic:  {report.LogicSummary}");
         await errors.WriteLineAsync($"health: {Reporting.HealthScore.Of(report.Findings).Said}");
@@ -155,6 +156,7 @@ public static class CommandLine
             Tried = report.Tried,
             Recognised = report.Recognised,
             FileMap = report.FileMap,
+            Complexity = report.Complexity,
             Health = Reporting.HealthScore.Of(report.Findings).Said,
             Findings = report.Findings,
             Output = report.Run?.Run is { } run ? [.. run.Lines.Select(line => line.DisplayLine)] : [],
