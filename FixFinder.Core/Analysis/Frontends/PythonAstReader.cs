@@ -116,6 +116,10 @@ internal sealed class PythonAstReader(string file)
                 yield return With(span, Items(node, "items").ToList(), Block(node, "body"));
                 break;
 
+            case "Match":
+                foreach (var lowered in Match(span, node)) yield return lowered;
+                break;
+
             case "FunctionDef" or "AsyncFunctionDef":
                 var nested = Function(node, owner: null);
                 _functions.Add(nested);
@@ -165,6 +169,109 @@ internal sealed class PythonAstReader(string file)
                 break;
         }
     }
+
+    /// <summary>
+    /// A class body's statements, with those inside an if, a try or a with in it - a method a class defines only on one
+    /// platform, or only when an import works, is still one of its methods - and whether each is written in the body itself.
+    /// </summary>
+    private static IEnumerable<(JsonElement Member, bool WrittenInTheBody)> ClassMembers(IEnumerable<JsonElement> body, bool writtenInTheBody) =>
+        body.SelectMany(member => Kind(member) switch
+        {
+            "If" => ClassMembers(Items(member, "body").Concat(Items(member, "orelse")), writtenInTheBody: false),
+            "Try" or "TryStar" => ClassMembers(Items(member, "body").Concat(Items(member, "handlers").SelectMany(handler => Items(handler, "body")))
+                .Concat(Items(member, "orelse")).Concat(Items(member, "finalbody")), writtenInTheBody: false),
+            "With" or "AsyncWith" => ClassMembers(Items(member, "body"), writtenInTheBody: false),
+            _ => [(member, writtenInTheBody)],
+        });
+
+    /// <summary>The name FixFinder gives a match's subject when it has to be worked out first; a space keeps it from any program's own.</summary>
+    private const string MatchSubject = "match subject";
+
+    /// <summary>
+    /// A match statement, read as the if and elif it does the work of: each case an if on its pattern - == for a value, is
+    /// for None, True or False, and a condition FixFinder does not work out for a class, list or mapping pattern - with the
+    /// pattern's alternatives, |, joined by or, and its guard, if, by and; a case that matches anything, case _ or case x,
+    /// with no guard, is the else. The names a case's pattern captures are set before its if, as the code reads them in its
+    /// guard and its body. A subject that is more than a name or a value is worked out once, as Python does.
+    /// </summary>
+    private IEnumerable<Stmt> Match(SourceSpan span, JsonElement node)
+    {
+        var subject = Expression(Field(node, "subject")!.Value);
+        var cases = Items(node, "cases").ToList();
+        var anyCaseReadsIt = cases.Any(@case => PatternTest(Field(@case, "pattern")!.Value, subject) is not null ||
+                                                CapturedNames(Field(@case, "pattern")!.Value).Any());
+
+        var read = subject;
+        if (subject is not (Name or Literal))
+        {
+            if (!anyCaseReadsIt)
+            {
+                yield return new Evaluate(span, subject);
+            }
+            else
+            {
+                read = new Name(span, MatchSubject);
+                yield return new Assign(span, read, subject);
+            }
+        }
+
+        foreach (var statement in MatchCases(cases, 0, read)) yield return statement;
+    }
+
+    /// <summary>The cases of a match from the one at <paramref name="index"/> on, each an if whose else is the cases after it.</summary>
+    private IReadOnlyList<Stmt> MatchCases(IReadOnlyList<JsonElement> cases, int index, Expr subject)
+    {
+        if (index == cases.Count) return [];
+
+        var @case = cases[index];
+        var pattern = Field(@case, "pattern")!.Value;
+        var span = Span(pattern);
+        var captured = CapturedNames(pattern).Select(name => (Stmt)new Assign(span, new Name(span, name), Opaque.Of(span, "matched", subject))).ToList();
+
+        var test = PatternTest(pattern, subject);
+        if (Field(@case, "guard") is { } guard)
+            test = test is null ? Expression(guard) : new Binary(span, BinaryOperator.And, test, Expression(guard));
+
+        var body = Block(@case, "body");
+        return test is null ? [.. captured, .. body] : [.. captured, new If(span, test, body, MatchCases(cases, index + 1, subject))];
+    }
+
+    /// <summary>What a pattern tests of the subject; null for one that matches anything - _, or a bare name that captures it.</summary>
+    private Expr? PatternTest(JsonElement pattern, Expr subject)
+    {
+        var span = Span(pattern);
+        switch (Kind(pattern))
+        {
+            case "MatchValue":
+                return new Binary(span, BinaryOperator.Equal, subject, Expression(Field(pattern, "value")!.Value));
+            case "MatchSingleton":
+                return new Binary(span, BinaryOperator.Is, subject, Field(pattern, "value") is { } singleton
+                    ? new Literal(span, LiteralKind.Boolean, singleton.ValueKind == JsonValueKind.True)
+                    : new Literal(span, LiteralKind.Null, null));
+            case "MatchAs":
+                return Field(pattern, "pattern") is { } inner ? PatternTest(inner, subject) : null;
+            case "MatchOr":
+                var alternatives = Items(pattern, "patterns").Select(alternative => PatternTest(alternative, subject)).ToList();
+                return alternatives.Any(alternative => alternative is null)
+                    ? null
+                    : alternatives.Aggregate((left, right) => new Binary(span, BinaryOperator.Or, left!, right!));
+            default:
+                return Opaque.Of(span, "pattern", subject);
+        }
+    }
+
+    /// <summary>The names a pattern captures: case Point(x=0, y=height) captures height, case {"name": name, **rest} name and rest.</summary>
+    private static IEnumerable<string> CapturedNames(JsonElement pattern) =>
+        NamesAssignedIn(pattern).Concat(MappingRests(pattern)).Distinct();
+
+    private static IEnumerable<string> MappingRests(JsonElement node) => node.ValueKind switch
+    {
+        JsonValueKind.Array => node.EnumerateArray().SelectMany(MappingRests),
+        JsonValueKind.Object when Kind(node) == "MatchMapping" && Text(node, "rest") is { Length: > 0 } rest =>
+            [rest, .. node.EnumerateObject().SelectMany(p => MappingRests(p.Value))],
+        JsonValueKind.Object => node.EnumerateObject().SelectMany(p => MappingRests(p.Value)),
+        _ => [],
+    };
 
     private Stmt With(SourceSpan span, List<JsonElement> items, IReadOnlyList<Stmt> body)
     {
@@ -269,18 +376,22 @@ internal sealed class PythonAstReader(string file)
         var methods = new List<IrFunction>();
         var fields = new List<IrField>();
 
-        foreach (var member in Items(node, "body"))
+        foreach (var (member, writtenInTheBody) in ClassMembers(Items(node, "body"), writtenInTheBody: true))
         {
             switch (Kind(member))
             {
                 case "FunctionDef" or "AsyncFunctionDef":
                     methods.Add(Function(member, name));
                     break;
-                case "Assign":
+                case "ClassDef":
+                    _classes.Add(Class(member));
+                    break;
+                // A field is read where the class's body itself sets it: one set in each branch of an if is not two fields.
+                case "Assign" when writtenInTheBody:
                     foreach (var target in Items(member, "targets").Where(t => Kind(t) == "Name"))
                         fields.Add(new IrField(Span(member), Text(target, "id"), IrType.Unknown, Expression(Field(member, "value")!.Value), IsStatic: true));
                     break;
-                case "AnnAssign" when Field(member, "target") is { } target && Kind(target) == "Name":
+                case "AnnAssign" when writtenInTheBody && Field(member, "target") is { } target && Kind(target) == "Name":
                     fields.Add(new IrField(Span(member), Text(target, "id"), TypeOf(Field(member, "annotation")),
                         Field(member, "value") is { } value ? Expression(value) : null, IsStatic: false));
                     break;

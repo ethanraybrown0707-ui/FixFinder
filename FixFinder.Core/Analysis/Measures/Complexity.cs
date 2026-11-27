@@ -13,7 +13,7 @@ namespace FixFinder.Core.Analysis.Measures;
 /// counted as functions of their own - or not at all, for a lambda - and not into the one around them; a C-style for
 /// with no condition, for (;;), decides nothing and is not counted; a Python comprehension's own for and if clauses are
 /// not counted, as the reader keeps only the list a comprehension goes through; a Python chained comparison,
-/// 0 &lt;= mark &lt;= 100, is read as the and it is; and a Python match is not read, nor anything in it.
+/// 0 &lt;= mark &lt;= 100, is read as the and it is; and a Python match as the ifs it does the work of.
 /// </remarks>
 public static class Complexity
 {
