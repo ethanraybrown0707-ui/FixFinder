@@ -79,6 +79,18 @@ public partial class MainWindow : Window
     /// <summary>Whether the program being checked was pasted in, rather than chosen as a file.</summary>
     private bool _pasting;
 
+    /// <summary>When the last full check began: a file written to after it may no longer hold the lines its fixes were worked out from.</summary>
+    private DateTime _checkStartedAt;
+
+    /// <summary>
+    /// Whether the findings shown are from a full check of a program chosen as a file that has finished - the only findings
+    /// Apply this fix is offered on. Findings read again after a save, from a folder's check, or of pasted code, are not.
+    /// </summary>
+    private bool _offerOneClickFixes;
+
+    /// <summary>What applying a fix did, to say among the notes of the check it starts.</summary>
+    private string? _afterApplying;
+
     /// <summary>The folder this window saves pasted code in, to check it; removed when the window closes.</summary>
     private string? _pastedFolder;
 
@@ -205,6 +217,7 @@ public partial class MainWindow : Window
         _manifestsSeenInFolder.Clear();
 
         _pasting = false;
+        _offerOneClickFixes = false;
         _pastedLanguage = null;
         NothingChosenPanel.Visibility = Visibility.Collapsed;
         ChosenPanel.Visibility = Visibility.Collapsed;
@@ -516,6 +529,8 @@ public partial class MainWindow : Window
     {
         // A full check reads the code as well, and does more besides.
         _codeCheck?.Cancel();
+        _checkStartedAt = DateTime.UtcNow;
+        _offerOneClickFixes = false;
 
         // Before the program is set up to run, as a restore can make the environment it runs in.
         var libraries = await LibrariesBeforeCheckingAsync(_chosenPath!);
@@ -702,6 +717,13 @@ public partial class MainWindow : Window
                        "program - another file it imports, a file it reads - was not there with it.");
         }
 
+        // A fix applied with one click started this check, and it is said where the file as it was is kept.
+        if (_afterApplying is { } applied)
+        {
+            _notes.Add(applied);
+            _afterApplying = null;
+        }
+
         foreach (var note in report.Notes) _notes.Add(note);
 
         TriedList.ItemsSource = report.Tried.Select(tried => new TriedInputRow(tried)).ToList();
@@ -714,8 +736,10 @@ public partial class MainWindow : Window
         HealthText.Text = $"Health {HealthScore.Of(report.Findings).Said}";
         HealthPanel.Visibility = Visibility.Visible;
 
-        // Compared before the findings are shown, so each is shown with where it stands against the last check.
+        // Compared before the findings are shown, so each is shown with where it stands against the last check. A fix can be
+        // applied with one click only now that the check has finished, and only to a program chosen as a file.
         RememberThisCheck(report);
+        _offerOneClickFixes = !_pasting;
         ShowFindings(report.Findings);
 
         SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, report.SyntaxSummary,
@@ -947,6 +971,7 @@ public partial class MainWindow : Window
             LeadsTo = links.LeadsTo(f),
             Status = _comparison?.StatusOf(f),
             Streak = _comparison?.StreakOf(f),
+            CanApplyFix = _offerOneClickFixes && OneClickFix.WhyNot(f) is null,
         }).ToList();
 
         FilterPanel.Visibility = _findings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -1081,6 +1106,7 @@ public partial class MainWindow : Window
     {
         // A full check is already reading the code, and more besides.
         if (_cancellation is not null || _launch is not { Ok: true } launch) return;
+        _offerOneClickFixes = false;
 
         _codeCheck?.Cancel();
         var reading = new CancellationTokenSource();
@@ -1324,6 +1350,26 @@ public partial class MainWindow : Window
     {
         if ((sender as FrameworkElement)?.Tag is FindingRow row && Copy(row.CorrectedExample) && sender is Button button)
             Flash(button, "Copied");
+    }
+
+    /// <summary>
+    /// Writes a finding's fix into its file - one FixFinder is certain solves the mistake, of 3 lines or fewer - keeping the
+    /// file as it was in FixFinder's data folder first, and then checks the program again. Not while a check is running.
+    /// </summary>
+    private async void ApplyFix_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not FindingRow row || _cancellation is not null || _chosenPath is null) return;
+
+        var (applied, whyNot) = OneClickFix.Apply(row.Finding, _checkStartedAt, OneClickFix.KeptIn);
+        if (applied is null)
+        {
+            _notes.Insert(0, $"The fix for \"{row.Finding.Title}\" was not applied: {whyNot}");
+            return;
+        }
+
+        _afterApplying = $"The fix for \"{row.Finding.Title}\" was applied to line {applied.Line} of {Path.GetFileName(applied.File)}, " +
+                         $"and the program checked again. The file as it was is kept at {applied.KeptAt}.";
+        await CheckAsync();
     }
 
     private void CopyReportButton_Click(object sender, RoutedEventArgs e)

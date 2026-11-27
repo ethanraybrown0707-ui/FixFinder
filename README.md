@@ -10,7 +10,9 @@ the exact code to change, why FixFinder thinks so - and only then what this kind
 
 There is no AI in it. Every check is ordinary code you can read: compiler and interpreter output, rules that work a fix
 out from an error message, patterns that recognise mistakes in the code itself, and a search that tries small changes
-until the program prints what it should. FixFinder never changes your files.
+until the program prints what it should. FixFinder changes none of your files unless you press **Apply this fix** on a
+finding, and it offers that only for a small fix it is certain of - one that made a copy of the program print what you
+said it should - keeping the file as it was first.
 
 ## Using it
 
@@ -44,7 +46,15 @@ until the program prints what it should. FixFinder never changes your files.
    the fix can be tried first and compared after - the lines it changes side by side, as they are now beside as the fix
    leaves them - with **Copy corrected code** beside it. That is **Learn**, beside the report's title; **Fix**, beside
    it, shows the corrected code with each finding straight away, for when the fix is what is wanted. The explanations are
-   the same in both, a finding's own Show and Hide still work, and the choice is kept for next time. Under it, the idea
+   the same in both, a finding's own Show and Hide still work, and the choice is kept for next time. Under the lines a
+   fix changes, **Apply this fix** writes it into the file - offered after a full check of a program chosen as a
+   file, and only for a fix FixFinder is certain of, which its **Fix confidence** says only when a copy of the
+   program with it printed what you said the program should print, under **Input and expected output** - running
+   without the error is only likely, as the program may still go wrong after it - and that takes out 3 lines or fewer
+   and puts in 3 or fewer. Not for pasted code or a notebook, nor for a change that only stops the failure.
+   The file is written as the copy that worked was, with its own line endings; first, the file as it was is kept in
+   FixFinder's data folder, under `backups\fixes`, and a file changed since the check began is left alone. The program
+   is then checked again, and the notes say what was applied and where the old file is kept. Under it, the idea
    behind the mistake is named and spelled out, with the finding's **problem code** - **Learn about this** opens it in
    [FixFinder Learn](#fixfinder-learn). **More detail** holds how it was found, the lines that decide it, how the fix
    was checked and where it came from. **Search online** looks the error up on GitHub and Stack Overflow, and

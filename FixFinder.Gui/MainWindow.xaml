@@ -228,6 +228,12 @@
                                     </StackPanel>
                                 </Border>
 
+                                <!-- Writes the change above into the file: only a fix FixFinder is certain solves the mistake, of 3 lines or fewer. -->
+                                <Button Content="Apply this fix" Style="{StaticResource SmallButton}" Tag="{Binding}" HorizontalAlignment="Left"
+                                        Margin="0,8,0,0" Click="ApplyFix_Click" AutomationProperties.AutomationId="ApplyFixButton"
+                                        Visibility="{Binding CanApplyFix, Converter={StaticResource Visible}}"
+                                        ToolTip="Writes this change into the file. FixFinder is certain of it - a copy of the program with it printed what you said it should - and it changes 3 lines or fewer. The file as it was is kept first, and the program is then checked again."/>
+
                                 <StackPanel Visibility="{Binding HasExample, Converter={StaticResource Visible}}">
                                     <TextBlock Text="{Binding ExampleLabel}" Style="{StaticResource Label}"/>
                                     <TextBox Text="{Binding CorrectedExample, Mode=OneWay}" Style="{StaticResource CodeBlock}"
@@ -1179,7 +1185,7 @@
                 <TextBlock x:Name="LogPathText" AutomationProperties.AutomationId="LogPathText"
                            Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="0,0,16,0"
                            TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
-                           Text="FixFinder never changes your files. Fixes are shown for you to copy."/>
+                           Text="FixFinder changes your files only when you press Apply this fix. Other fixes are shown for you to copy."/>
             </DockPanel>
         </Border>
     </Grid>

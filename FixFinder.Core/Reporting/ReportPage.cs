@@ -167,7 +167,8 @@ public sealed record ReportPage
         }
 
         page.Append("<footer>\n<p>").Append(Text($"Made by FixFinder {Version}. There is no AI in it: every finding comes from a compiler, a run of " +
-                                                  "the program, a rule or an analysis, as each one says. FixFinder changes no files - a fix is for you to make."))
+                                                  "the program, a rule or an analysis, as each one says. FixFinder changes a file only when Apply this fix is pressed on " +
+                                                  "a finding in its window; every other fix is for you to make."))
             .Append("</p>\n</footer>\n</main>\n</body>\n</html>\n");
 
         return page.ToString();

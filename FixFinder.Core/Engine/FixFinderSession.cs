@@ -767,7 +767,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                     $"It changes {files} file{(files == 1 ? "" : "s")} " +
                     $"(+{bestPlan.Files.Sum(f => f.Patch.AddedCount)} " +
                     $"-{bestPlan.Files.Sum(f => f.Patch.RemovedCount)} lines). " +
-                    "Copy it and paste it in - FixFinder does not touch your files.",
+                    "Copy it and paste it in - FixFinder does not make this change for you.",
                 Spec = spec, Run = common.Run, Error = common.Error, Fingerprint = common.Fingerprint,
                 FailedToCompile = failedToCompile,
                 Candidates = ranked, Best = best, Harvest = bestHarvest, Plan = bestPlan,
@@ -787,7 +787,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 Detail = best.CommandGoesIn is not null
                     ? $"The code needs a library the program does not have. This is {best.CommandDescription}:\n\n" +
                       $"    {command.Replace("\n", "\n    ")}\n\n" +
-                      $"{(command.Contains("VERSION", StringComparison.Ordinal) ? "Put the current version in place of VERSION, and copy" : "Copy")} it in - FixFinder does not change your files."
+                      $"{(command.Contains("VERSION", StringComparison.Ordinal) ? "Put the current version in place of VERSION, and copy" : "Copy")} it in - FixFinder does not make this change for you."
                     : $"Nothing in your code is wrong - the interpreter that ran it does not have this " +
                       $"package. Installing it changes no files:\n\n    {command}\n\n" +
                       "Copy it and run it in a terminal - FixFinder does not run anything for you.",
