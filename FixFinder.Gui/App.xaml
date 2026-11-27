@@ -8,6 +8,18 @@
                 <ResourceDictionary Source="pack://application:,,,/FixFinder.Desktop;component/Styles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
+            <!--
+                FixFinder's logo on its black tile, as Assets\make-icon.py makes it from the logo as it was given, filling the
+                picture it is shown in as FixFinder Learn's tile does, and shrunk smoothly to that picture's size.
+            -->
+            <DrawingImage x:Key="LogoImage">
+                <DrawingImage.Drawing>
+                    <DrawingGroup RenderOptions.BitmapScalingMode="HighQuality">
+                        <ImageDrawing Rect="0,0,100,100" ImageSource="pack://application:,,,/FixFinder.Gui;component/Assets/logo.png"/>
+                    </DrawingGroup>
+                </DrawingImage.Drawing>
+            </DrawingImage>
+
             <!-- A way to give FixFinder the program - a file, a folder, or code pasted in - as a tile, as the languages are. -->
             <Style x:Key="SourceTile" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                 <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}"/>

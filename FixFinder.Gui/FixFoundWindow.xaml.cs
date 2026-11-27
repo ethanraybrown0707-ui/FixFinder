@@ -133,7 +133,7 @@ public partial class FixFoundWindow : Window
             _rows.Add(Note(""));
             foreach (var line in addition.Split('\n')) _rows.Add(new DiffRow { Kind = DiffRowKind.Added, Text = $"  {line}" });
             _rows.Add(Note(""));
-            _rows.Add(Note($"Copy it into {buildFile}. FixFinder does not change your files."));
+            _rows.Add(Note($"Copy it into {buildFile} - FixFinder does not make this change for you."));
 
             return;
         }

@@ -2166,8 +2166,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
             var findings = AbstractChecks.Run(program, new SourceText(), Cache);
 
-            // Functions written twice - the same lines but for their own names - with one in the file that was chosen.
-            findings = [.. findings, .. DuplicateFunctions.Find(program, launch.ChosenFile)];
+            // Functions written twice - the same lines but for their own names - with one in the file that was chosen; and
+            // classes of 250 methods or more in it.
+            findings = [.. findings, .. DuplicateFunctions.Find(program, launch.ChosenFile), .. ClassTooBig.Find(program, launch.ChosenFile)];
 
             // What the code looks like it is meant to do, read from the same code: a binary search, a bubble sort.
             _recognised = Analysis.Recognition.AlgorithmRecognition.Of(program);

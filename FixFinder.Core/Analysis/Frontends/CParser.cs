@@ -321,6 +321,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         {
             var isClass = Is("class");
             _at++;
+            var nameToken = Current;
             var name = Take().Text;
             _typedefs.Add(name);
 
@@ -336,7 +337,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
                 }
             }
 
-            ReadStructBody(name, bases, isClass || cpp);
+            ReadStructBody(name, bases, isClass || cpp, From(nameToken));
             SkipTo(";");
             return;
         }
@@ -491,7 +492,8 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
     }
 
     /// <summary>The fields and, in C++, the methods a struct or class holds.</summary>
-    private void ReadStructBody(string name, List<string>? bases = null, bool asClass = false)
+    /// <param name="declaredAt">Where its name is written - struct Point, class Inventory - when it is read there.</param>
+    private void ReadStructBody(string name, List<string>? bases = null, bool asClass = false, SourceSpan? declaredAt = null)
     {
         if (!Is("{")) return;
 
@@ -577,7 +579,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         Expect("}");
         _owner = outer;
         _structs[name] = fields;
-        if (methods.Count > 0 || asClass) _classes.Add(new IrClass(SourceSpan.None, name, bases ?? [], fields, methods));
+        if (methods.Count > 0 || asClass) _classes.Add(new IrClass(declaredAt ?? SourceSpan.None, name, bases ?? [], fields, methods));
     }
 
     private bool StartsType()

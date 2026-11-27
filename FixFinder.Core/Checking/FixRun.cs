@@ -11,8 +11,9 @@ namespace FixFinder.Core.Checking;
 /// </summary>
 /// <remarks>
 /// The copy is the whole point. Finding out whether a fix works means running the program, and running the person's
-/// own file would mean writing the fix into it first, which FixFinder does not do. Everything here happens in a folder
-/// under the temporary directory, which is deleted afterwards whatever the outcome.
+/// own file would mean writing the fix into it first, which FixFinder does only when the person presses Apply this fix -
+/// and OneClickFix offers that only for a fix whose copy here printed what the person said the program should print.
+/// Everything here happens in a folder under the temporary directory, which is deleted afterwards whatever the outcome.
 /// </remarks>
 public static class FixRun
 {

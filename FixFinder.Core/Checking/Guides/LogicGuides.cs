@@ -33,6 +33,15 @@ internal static class LogicGuides
             + "have the copy call the one it was copied from.",
             ""),
 
+        GuideFor(["analysis-class-too-big"], "A class too big",
+            "This class has 250 methods or more, the number FixFinder counts as too many for one class. A class that big is "
+            + "usually doing the work of several: its methods fall into groups that each use a part of its fields and little else.",
+            "Among so many methods, the part a change belongs in is harder to find, and one group of them can be hard to test "
+            + "without setting up everything the others need.",
+            "Split it: put each group of methods that works on the same fields into a class of its own, and give this class one "
+            + "of each to call - or keep in it only the methods that tie the others together.",
+            ""),
+
         GuideFor(["tests-miss-change"], "A change the tests do not catch",
             "Every test passes, so FixFinder measured what they check: it made small changes to the code they call, one at a "
             + "time in a copy - the kinds of change a mistake makes, a bound off by one or the wrong operator - and ran the tests "

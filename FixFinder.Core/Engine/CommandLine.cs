@@ -121,6 +121,7 @@ public static class CommandLine
         foreach (var uses in report.FileMap) await errors.WriteLineAsync($"uses: {uses}");
         await errors.WriteLineAsync($"syntax: {report.SyntaxSummary}");
         await errors.WriteLineAsync($"logic:  {report.LogicSummary}");
+        await errors.WriteLineAsync($"health: {Reporting.HealthScore.Of(report.Findings).Said}");
 
         if (asked.HtmlReport is { } html && !await SaveReportAsync(html, asked, launch, report, errors)) return CouldNotCheck;
 
@@ -154,6 +155,7 @@ public static class CommandLine
             Tried = report.Tried,
             Recognised = report.Recognised,
             FileMap = report.FileMap,
+            Health = Reporting.HealthScore.Of(report.Findings).Said,
             Findings = report.Findings,
             Output = report.Run?.Run is { } run ? [.. run.Lines.Select(line => line.DisplayLine)] : [],
         };

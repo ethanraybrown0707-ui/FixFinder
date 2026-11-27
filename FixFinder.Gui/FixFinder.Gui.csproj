@@ -28,6 +28,8 @@
          own Icon property is a separate thing entirely, and without this the title bar falls
          back to the generic one while the Explorer icon looks right. -->
     <Resource Include="Assets\FixFinder.ico" />
+    <!-- The logo on its tile, at 256px, for the window's header and its empty report. -->
+    <Resource Include="Assets\logo.png" />
   </ItemGroup>
 
   <ItemGroup>

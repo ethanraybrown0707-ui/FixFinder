@@ -229,6 +229,12 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Whether Apply this fix is offered: after a full check of a program chosen as a file, for a fix OneClickFix
+    /// allows - one FixFinder is certain solves the mistake, and of 3 lines or fewer.
+    /// </summary>
+    public bool CanApplyFix { get; init; }
+
     public string CorrectionToggleText => CorrectionShown
         ? "Hide the corrected code"
         : Finding.ExampleIsFromYourCode || HasChange ? "Show the corrected code" : "Show a small example of the fix";

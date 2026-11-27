@@ -228,6 +228,12 @@
                                     </StackPanel>
                                 </Border>
 
+                                <!-- Writes the change above into the file: only a fix FixFinder is certain solves the mistake, of 3 lines or fewer. -->
+                                <Button Content="Apply this fix" Style="{StaticResource SmallButton}" Tag="{Binding}" HorizontalAlignment="Left"
+                                        Margin="0,8,0,0" Click="ApplyFix_Click" AutomationProperties.AutomationId="ApplyFixButton"
+                                        Visibility="{Binding CanApplyFix, Converter={StaticResource Visible}}"
+                                        ToolTip="Writes this change into the file. FixFinder is certain of it - a copy of the program with it printed what you said it should - and it changes 3 lines or fewer. The file as it was is kept first, and the program is then checked again."/>
+
                                 <StackPanel Visibility="{Binding HasExample, Converter={StaticResource Visible}}">
                                     <TextBlock Text="{Binding ExampleLabel}" Style="{StaticResource Label}"/>
                                     <TextBox Text="{Binding CorrectedExample, Mode=OneWay}" Style="{StaticResource CodeBlock}"
@@ -637,7 +643,7 @@
                                     <Rectangle RadiusX="10" RadiusY="10" StrokeThickness="1.5" StrokeDashArray="5 3" SnapsToDevicePixels="True">
                                         <Rectangle.Style>
                                             <Style TargetType="Rectangle">
-                                                <Setter Property="Stroke" Value="#B8BBC5"/>
+                                                <Setter Property="Stroke" Value="#B4BBC6"/>
                                                 <Setter Property="Fill" Value="{DynamicResource SubtleBrush}"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
@@ -975,6 +981,14 @@
                 </Grid>
 
                 <StackPanel Grid.Row="2">
+                    <!-- How healthy the code is, out of 100, with what each kind of problem found took off. -->
+                    <Border x:Name="HealthPanel" AutomationProperties.AutomationId="HealthPanel" Visibility="Collapsed"
+                            Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
+                            BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,0,0,12">
+                        <TextBlock x:Name="HealthText" AutomationProperties.AutomationId="HealthText"
+                                   TextWrapping="Wrap" FontSize="12.5" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                    </Border>
+
                     <!-- This check beside the last one of the same program: what was fixed, what is new, what is still there. -->
                     <Border x:Name="SinceLastPanel" AutomationProperties.AutomationId="SinceLastPanel" Visibility="Collapsed"
                             Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
@@ -1171,7 +1185,7 @@
                 <TextBlock x:Name="LogPathText" AutomationProperties.AutomationId="LogPathText"
                            Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="0,0,16,0"
                            TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
-                           Text="FixFinder never changes your files. Fixes are shown for you to copy."/>
+                           Text="FixFinder changes your code only when you press Apply this fix. Other fixes are shown for you to copy."/>
             </DockPanel>
         </Border>
     </Grid>
