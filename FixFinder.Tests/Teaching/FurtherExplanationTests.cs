@@ -131,7 +131,7 @@ public class FurtherExplanationTests : IDisposable
 
 /// <summary>
 /// Each language's message, as its own tools print it, has the parts its description says it has: a crash and a mistake
-/// that stops it building, run with the language's toolchain the way FixFinder Learn runs a lesson. A language this
+/// that stops it building, run with the language's toolchain the way FixFinder runs a program. A language this
 /// computer cannot run is passed over, and said to be.
 /// </summary>
 public class MessageReadingLiveTests(ITestOutputHelper output)

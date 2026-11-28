@@ -98,7 +98,7 @@ public class FormatCodePatternTests : IDisposable
 }
 
 /// <summary>
-/// Each printf code given to a print, run with the language itself the way FixFinder Learn runs a lesson, and the check's own
+/// Each printf code given to a print, run with the language itself the way FixFinder runs a program, and the check's own
 /// change run the same way. A language this computer cannot run is passed over, and said to be.
 /// </summary>
 public class FormatCodeLiveTests(ITestOutputHelper output) : IDisposable

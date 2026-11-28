@@ -80,7 +80,7 @@ public class StepOverEndPatternTests : IDisposable
 }
 
 /// <summary>
-/// The mistake and its change run with each language's own toolchain, as FixFinder Learn runs a lesson, counting the loop's
+/// The mistake and its change run with each language's own toolchain, as FixFinder runs a program, counting the loop's
 /// passes. The counter counts odd numbers - 1, 3, 5, 7, 9, 11 - so it never lands on 10, not even in an int, which wraps round
 /// and stays odd: the mistake is still running when its time runs out, in every language, and the change stops after 5.
 /// (Counting from 0 by 3 instead, an int lands on 10 after 2,863,311,534 passes - Java took about ten seconds for them on CI,

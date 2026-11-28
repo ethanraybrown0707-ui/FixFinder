@@ -55,7 +55,7 @@ public class SharedRowPatternTests : IDisposable
 }
 
 /// <summary>
-/// The mistake and its change run with each language's own toolchain, as FixFinder Learn runs a lesson: the mistake shows the
+/// The mistake and its change run with each language's own toolchain, as FixFinder runs a program: the mistake shows the
 /// change in every row, and the change in the first alone. A language this computer cannot run is passed over, and said to be.
 /// </summary>
 public class SharedRowLiveTests(ITestOutputHelper output) : IDisposable

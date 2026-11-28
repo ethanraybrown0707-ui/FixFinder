@@ -4,13 +4,13 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <!-- The styles FixFinder shares with FixFinder Learn. Theme.Apply adds the colours beside it. -->
+                <!-- The styles FixFinder's windows are built from. Theme.Apply adds the colours beside it. -->
                 <ResourceDictionary Source="pack://application:,,,/FixFinder.Desktop;component/Styles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
             <!--
                 FixFinder's logo on its black tile, as Assets\make-icon.py makes it from the logo as it was given, filling the
-                picture it is shown in as FixFinder Learn's tile does, and shrunk smoothly to that picture's size.
+                picture it is shown in, and shrunk smoothly to that picture's size.
             -->
             <DrawingImage x:Key="LogoImage">
                 <DrawingImage.Drawing>

@@ -8,7 +8,7 @@ using Xunit.Abstractions;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// int arithmetic too big for an int, built and run with each language's own tools the way FixFinder Learn runs a lesson:
+/// int arithmetic too big for an int, built and run with each language's own tools the way FixFinder runs a program:
 /// the program prints the wrapped value the finding names, 1471228928, and with the finding's change, 31536000000. A
 /// language this computer cannot build - or a program Windows refused to start - is passed over, and said to be.
 /// </summary>

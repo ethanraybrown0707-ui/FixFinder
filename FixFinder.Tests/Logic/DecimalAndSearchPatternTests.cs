@@ -72,7 +72,7 @@ public class DecimalAndSearchPatternTests : IDisposable
 }
 
 /// <summary>
-/// What each of these mistakes does, run with each language's own toolchain the way FixFinder Learn runs a lesson, and what
+/// What each of these mistakes does, run with each language's own toolchain the way FixFinder runs a program, and what
 /// its change does instead. A language this computer cannot run is passed over, and said to be.
 /// </summary>
 public class DecimalAndSearchLiveTests(ITestOutputHelper output)

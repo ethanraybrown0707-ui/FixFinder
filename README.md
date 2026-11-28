@@ -56,9 +56,8 @@ project's libraries writes, when you turn that on.
    The file is written as the copy that worked was, with its own line endings; first, the file as it was is kept in
    FixFinder's data folder, under `backups\fixes`, and a file changed since the check began is left alone. The program
    is then checked again, and the notes say what was applied and where the old file is kept. Under it, the idea
-   behind the mistake is named and spelled out, with the finding's **problem code** - **Learn about this** opens it in
-   [FixFinder Learn](#fixfinder-learn). **More detail** holds how it was found, the lines that decide it, how the fix
-   was checked and where it came from. **Search online** looks the error up on GitHub and Stack Overflow, and
+   behind the mistake is named and spelled out. **More detail** holds how it was found, the lines that decide it, how
+   the fix was checked and where it came from. **Search online** looks the error up on GitHub and Stack Overflow, and
    **Show in folder** opens the program's folder. **Copy report** copies every finding as plain text,
    and **Save report…** saves the whole report as a web page to keep, print or hand in: every finding with all the window
    shows of it, the notes, how the program was built and run, what it printed, and how this check compares with the last
@@ -78,12 +77,12 @@ project's libraries writes, when you turn that on.
    oldest first: 7, 5, 5, 3, 2.* The saved report says both.
    A kind of mistake this check found that you keep making is said too - one made three times or more in the last 30
    days, or in another program as well as this one - at most three, those made most often first, with the habit that
-   stops it and its lesson in FixFinder Learn: *Where a statement ends has turned up 4 times in this program in the
+   stops it: *Where a statement ends has turned up 4 times in this program in the
    last 30 days. What stops it: End each statement with its semicolon as you finish typing it...* A mistake counts
    once however many checks found it - the same unfixed `;` seen by five checks is one - while a `;` missed on another
    line, or missed again after it was put right, is another. Small slips are each given their kind: an unclosed
    bracket or quote, a missing `;`, `:` or `}`, a name in the wrong case or misspelt, `=` where `==` was meant. For
-   this the history keeps the idea behind each finding, as FixFinder Learn names it, never the finding or its code; a
+   this the history keeps the idea behind each finding - `OFFBYONE`, `DIVZERO` - never the finding or its code; a
    mistake taught only as reading what went wrong is not said, and the saved report says it under *What keeps turning
    up*.
    The report also gives the code's **health**, out of 100: 100 with no problem found, and less for each problem - an
@@ -1231,7 +1230,6 @@ changed.
 | **Exact code to change** | When FixFinder worked the fix out, the lines it changes side by side: as they are now on the left, as the fix leaves them on the right, each line taken out beside the line put in its place, marked - and + as well as coloured, with the two lines either side to place it. A line put in with nothing to replace has an empty side beside it, and a line below the change has, on the right, the number it will have once the fix is in. The window shows it behind **Show the corrected code**, and a saved report as a table. |
 | **Example of corrected code** | Your own lines as they should be, when FixFinder worked the fix out and a compiler agreed with it - otherwise a small example of this kind of fix, labelled as not your code. Shown when **Show the corrected code** is pressed. |
 | **The idea** | The idea behind the mistake - dividing by zero, using a value that is not there, going one step too far - in plain words that hold in every language. |
-| **Problem code** | A code such as `FF-PY-DIVZERO-9PMEEB1` that opens the finding in FixFinder Learn. |
 
 When two checks find the same mistake - a compiler warning and a logic pattern, or a crash and the pattern that explains
 it - the report shows it once, at the surer of the two confidences.
@@ -1451,58 +1449,12 @@ Where the line it stopped on is a statement of its own, the change that runs it 
 indented as the file indents - kept only when a copy with it runs without the error, and marked as only stopping the
 failure.
 
-## FixFinder Learn
+## What FixFinder keeps on this computer
 
-FixFinder Learn is a second window, for learning the idea behind a mistake rather than fixing one program. Every finding
-in a file of a language FixFinder checks has a **problem code**, such as `FF-PY-DIVZERO-9PMEEB1`: the language, the idea
-behind the mistake, then seven letters - five that tell this problem from others of its kind, and two worked out from
-the rest of the code, so a code copied with a slip in it is almost always caught (all but about one slip in a thousand)
-rather than opening another problem. Press **Learn about this** on a finding, or paste its code into **Open a problem**;
-lower case, spaces and a missing `FF-` are all accepted, and as Crockford's base 32 reads them, I and L are taken for 1
-and O for 0. The problems FixFinder has found on this computer are listed too, newest first.
-
-A problem opens on:
-
-- **Your problem**, when it was found on this computer: what FixFinder said of it, where it is, the line of code it is on
-  and the change FixFinder found for it.
-- **The idea** behind it, in words that hold in every language, and what the problem's own language does about it.
-- **Examples**: small programs with the mistake, and the same programs put right, with what changed. **Run it** runs
-  each one here, as FixFinder runs a program, and shows what it printed and how it ended.
-- **Try it yourself**: the first program again, to put right. **Check my fix** runs it and says what it did beside what
-  the program put right does - it says what was seen, not whether the code is good, as a different fix can print
-  something else and still be right.
-- **Check your understanding**: questions on what a program does when it runs, which line it stops on, and which of
-  several changes puts it right - with why each answer is right or wrong. The questions answered right are remembered, and
-  a lesson with all of them answered is marked done.
-
-Nothing in a lesson is written from memory. Each example states what its program does - what it prints, the error it
-stops with and the line (or that the language names no line, as OCaml names none for some divisions by zero), that its
-compiler refuses it, or that it never finishes - and `LessonLiveTests` runs every
-program of every lesson with the language's own compiler or interpreter, the way FixFinder runs a program, and fails
-when one does anything else. The questions are made only from those behaviours, so the right answer to each is what
-running the program shows. Should this computer's compiler or interpreter do something else than a lesson says,
-**Run it** says so beside what it saw. Every idea but the general one - reading what went wrong - has lessons in at
-least two languages, and they are listed by language; an idea with no lesson in the problem's language yet
-names the languages it has one in, and the general idea is shown with what FixFinder said of the problem.
-
-FixFinder keeps what it said of each problem it finds - its title, what is wrong, why it matters, how to fix it, where it
-is, the line of code it is on and the change it found - in a small file under `%LOCALAPPDATA%\FixFinder\learn\problems`,
-so FixFinder Learn can show it beside the lesson. Only the newest 500 codes are kept, and **Forget these** in FixFinder
-Learn deletes them all; a code still opens its lesson afterwards, without your own lines. A code from another computer
-opens the lesson and says that the problem itself is not kept here. The questions answered right are kept in
-`%LOCALAPPDATA%\FixFinder\learn\progress.json`. Nothing is sent anywhere.
-
-The lessons of a language are listed with those on the kinds of mistake FixFinder found in your programs of that
-language in the last 30 days first, the most often first, then those it found only in the 30 days before, each with how
-often in both - *Brackets and quotes that are never closed - once lately, 4 times in the 30 days before*, or *none
-lately, twice in the 30 days before* for a kind no longer made - read from the history of checks the way the main window
-counts them: each mistake once, however many checks found it, and one left as it was through both counted in each.
-FixFinder Learn only reads the history.
-
-Everything FixFinder keeps on this computer - the history of checks, the preferences, these problems and this progress,
-its builds, its cache and a saved sign-in - is in `%LOCALAPPDATA%\FixFinder`, or in the folder the
-`FIXFINDER_DATA_FOLDER` environment variable names when it is set: a way to try FixFinder and FixFinder Learn without
-the checks made going into your own history and list of problems.
+Everything FixFinder keeps on this computer - the history of checks, the preferences, its builds, its cache, a saved
+sign-in and each file as it was before **Apply this fix** changed it - is in `%LOCALAPPDATA%\FixFinder`, or in the folder
+the `FIXFINDER_DATA_FOLDER` environment variable names when it is set: a way to try FixFinder without the checks made
+going into your own history.
 
 ## How the two checks work
 
@@ -2529,10 +2481,11 @@ FixFinder what the program should print adds a run for each change the search fo
 
 ### The tests FixFinder itself passes
 
-FixFinder's own tests are in `FixFinder.Tests`: 2,389 test methods in 409 classes, most of them run once for each
-program, mistake or language they are given - 121,293 test cases in all. Every push to `main`, and every run started by
-hand, runs them on GitHub's Windows runner in five jobs at once, from `.github/workflows/tests.yml`. On commit 2f46db7
-(run 43872860835) every one of them passed:
+FixFinder's own tests are in `FixFinder.Tests`, most of them run once for each program, mistake or language they are
+given. Every push to `main`, and every run started by hand, runs them on GitHub's Windows runner in five jobs at once,
+from `.github/workflows/tests.yml`. On commit 2f46db7 (run 43872860835), before FixFinder Learn was taken out - its
+lessons' tests are among these - there were 2,389 test methods in 409 classes, 121,293 test cases in all, and every one
+of them passed:
 
 | Job | Test cases | What it runs |
 |---|---:|---|
@@ -2564,8 +2517,8 @@ That is 124,726 test cases a run. By folder of `FixFinder.Tests`, from the dotne
 | `Security` | 9 | 1 | keeping the GitHub token |
 | `Display` | 6 | 1 | fitting a window to its screen |
 
-Most of the cases are the robustness tests, which take every program the other tests hold - the lessons, the guides'
-examples, the captured programs and the tests' own snippets - and try each check on it in ways it was not written for:
+Most of the cases are the robustness tests, which take every program the other tests hold - the guides' examples, the
+captured programs and the tests' own snippets - and try each check on it in ways it was not written for:
 
 | Robustness class | Test cases | What each case asks |
 |---|---:|---|
@@ -2578,9 +2531,9 @@ examples, the captured programs and the tests' own snippets - and try each check
 
 133 classes, named `...LiveTests`, hold 1,934 cases that build and run real programs with their own language's tools,
 through FixFinder or the part of it being tested, and check what came of it: the mistake named on its line, a fix proved
-by a copy of the program that ran with it, a crash followed back to where its value came from, a lesson's program doing
-what the lesson says. The other cases read code, run FixFinder's parts on their own, or run a program without the whole
-check.
+by a copy of the program that ran with it, a crash followed back to where its value came from, a mistake and its change
+each doing what it was seen to. The other cases read code, run FixFinder's parts on their own, or run a program without
+the whole check.
 
 On this computer the same tests outside the live classes - about 119,400 cases - ran in about 12 to 22 minutes. The few
 that fail here are tests whose built programs Windows' Smart App Control would not start, which a run on GitHub, with no
@@ -2647,8 +2600,7 @@ problem. It exits with 0 when nothing is wrong, 1 when there is at least one err
 |---|---|
 | `FixFinder.Core` | Everything but the windows. `net8.0`, so the tests run without a desktop. |
 | `FixFinder.Gui` | FixFinder's window. |
-| `FixFinder.Learn` | FixFinder Learn's window. Its lessons, and everything it runs, come from `FixFinder.Core`. |
-| `FixFinder.Desktop` | What the two windows share: the styles, the light and dark themes - the title bar included, coloured as the header under it - code shown in text, and fitting a window to its screen. |
+| `FixFinder.Desktop` | The look of FixFinder's windows: the styles, the light and dark themes - the title bar included, coloured as the header under it - code shown in text, and fitting a window to its screen. |
 | `FixFinder.Cli` | `fixfinder`, the same check from a terminal or an editor. All of it is `Core/Engine/CommandLine.cs`; this only hands it the console. |
 | `FixFinder.Tests` | xUnit tests, in folders that mirror `FixFinder.Core`. |
 | `TestTargets` | Small programs that crash, hang or print the wrong thing, to point FixFinder at. |
@@ -2665,17 +2617,15 @@ Inside `FixFinder.Core`:
 | `Parsing` | The stack-trace parsers. |
 | `Fingerprinting`, `Sources`, `Ranking`, `Http`, `Security` | Online search: the query, GitHub and Stack Overflow, ranking, caching and token storage. |
 | `Patching` | Reading diffs from search results and working out where they would land in your code. |
-| `Teaching` | FixFinder Learn's side: the ideas behind mistakes (`Concepts`) and which finding is which (`ConceptMap`), problem codes, the problems kept for Learn (`ProblemStore`), the lessons (`LessonsByConcept`), the questions made from them (`Quiz`) and the runner that runs a lesson's programs (`SnippetRunner`). |
+| `Teaching` | The ideas behind mistakes (`Concepts`), which finding is which (`ConceptMap`) and the habit that stops each (`Habits`); a finding's steps, how to make it happen and what its message says (`FurtherExplanation`); the kinds of mistake that keep turning up (`RecurringMistakes`); and the runner the tests run a mistake and its change with (`SnippetRunner`). |
 | `Display` | The arithmetic of fitting a window to a screen, apart from WPF so it can be tested. |
 
 To add a check: a logic check goes in `Logic`, with a guide in `Checking/Guides` and cases in
 `CodeReviewPatternTests`, including correct code it must leave alone. A fix rule goes in its language's folder under
-`LocalFixes/Rules`, is listed in `LocalFixEngine.Rules`, and gets a guide and a test. A lesson goes in
-`Teaching/LessonsByConcept`, in the file of its idea, and is listed in `Lessons.All`; `LessonLiveTests` then runs each of
-its programs, and fails until each does what the lesson says.
+`LocalFixes/Rules`, is listed in `LocalFixEngine.Rules`, and gets a guide and a test.
 
-Each check then meets the tests in `FixFinder.Tests/Robustness`. Every program the tests hold - the lessons, the guides'
-examples, the captured programs and the tests' own snippets - is read again with Windows line endings, a byte-order
+Each check then meets the tests in `FixFinder.Tests/Robustness`. Every program the tests hold - the guides' examples,
+the captured programs and the tests' own snippets - is read again with Windows line endings, a byte-order
 mark, a comment line at the top, tabs and the like, and must give the same findings. Each change a check offers is made
 and the file read again: it must leave one fewer of that check's mistakes, and no more of any other.
 
@@ -2686,14 +2636,11 @@ The NuGet dependencies are `System.Security.Cryptography.ProtectedData`, for the
 
 ```
 dotnet build FixFinder.Gui\FixFinder.Gui.csproj
-dotnet build FixFinder.Learn\FixFinder.Learn.csproj
 dotnet test  FixFinder.Tests\FixFinder.Tests.csproj
 ```
 
-Run the build with `run-fixfinder.cmd`, or `dotnet FixFinder.Gui\bin\Debug\net8.0-windows\FixFinder.Gui.dll`, and
-FixFinder Learn with `dotnet FixFinder.Learn\bin\Debug\net8.0-windows\FixFinder.Learn.dll` - or with **Learn about this**
-on a finding, which finds Learn's build beside FixFinder's. Tests that need a compiler or runtime that is not installed
-skip themselves.
+Run the build with `run-fixfinder.cmd`, or `dotnet FixFinder.Gui\bin\Debug\net8.0-windows\FixFinder.Gui.dll`. Tests that
+need a compiler or runtime that is not installed skip themselves.
 
 To make a single executable with .NET included:
 
@@ -2701,9 +2648,8 @@ To make a single executable with .NET included:
 powershell -ExecutionPolicy Bypass -File publish-exe.ps1
 ```
 
-That writes `publish\FixFinder.exe`, and `publish\FixFinderLearn.exe` beside it, where **Learn about this** looks for
-it. Add `-FrameworkDependent` for much smaller exes that need the .NET 8 desktop runtime installed. Keep them somewhere
-writable, since FixFinder writes its `Logs` folder beside itself.
+That writes `publish\FixFinder.exe`. Add `-FrameworkDependent` for a much smaller exe that needs the .NET 8 desktop
+runtime installed. Keep it somewhere writable, since FixFinder writes its `Logs` folder beside itself.
 
 On a machine with Windows Smart App Control, a newly built exe or DLL can be refused until Windows has seen it before,
 even when it is signed. `run-fixfinder.cmd` starts the DLL through `dotnet.exe`, which Windows already trusts, and is the
@@ -2713,7 +2659,7 @@ when a code-signing certificate is present, and does nothing when there is not o
 The logo is the picture in `FixFinder.Gui\Assets\logo-given.png`. `FixFinder.Gui\Assets\make-icon.py` sets it on a black
 rounded tile at every icon size, shrinking it from that picture at each size's own scale - larger at the small sizes, so
 they can still be made out - and the tile fills its whole square at every size, so on the desktop it is as big as the
-icons beside it. The same script draws FixFinder Learn's book.
+icons beside it.
 
 ## Licence
 

@@ -1,17 +1,17 @@
 namespace FixFinder.Core.Teaching;
 
 /// <summary>
-/// One idea behind a kind of mistake - dividing by zero, a position that does not exist - which a lesson teaches and every
-/// finding of that kind is an example of, whatever language it is in.
+/// One idea behind a kind of mistake - dividing by zero, a position that does not exist - which every finding of that kind
+/// is an example of, whatever language it is in.
 /// </summary>
 /// <param name="Code">
-/// Its short name in a problem code: DIVZERO in FF-PY-DIVZERO-K7Q2MX. A code is how FixFinder Learn finds the lesson, so a
-/// concept's code is never changed once given out - a code copied from an older FixFinder must still open its lesson.
+/// Its short name - DIVZERO - which the history of checks keeps for each finding, to tell the kinds of mistake that keep
+/// turning up. A concept's code is never changed once given out: a history kept by an older FixFinder must still name it.
 /// </param>
-/// <param name="Title">What the lesson is called.</param>
+/// <param name="Title">What the idea is called.</param>
 /// <param name="Idea">
 /// The idea in plain words for someone new to programming. It holds for every language FixFinder checks; where languages
-/// differ, it says they do, and each language's lesson shows what that language does by running an example of it.
+/// differ, it says they do.
 /// </param>
 public sealed record Concept(string Code, string Title, string Idea);
 
@@ -161,7 +161,7 @@ public static class Concepts
         "problem. Reading the message from the line it names - and the line before it, as a missing bracket or quote is often " +
         "reported one line late - is the fastest way to the mistake.");
 
-    /// <summary>Every concept, in the order FixFinder Learn lists them.</summary>
+    /// <summary>Every concept, in the order kinds of mistake made as often as each other are said in.</summary>
     public static IReadOnlyList<Concept> All { get; } =
     [
         DivisionByZero, NothingThere, PositionOutOfRange, MissingKey, UndefinedName, ReadBeforeSet, WrongType, Blocks,

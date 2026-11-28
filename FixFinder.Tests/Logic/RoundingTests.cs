@@ -72,7 +72,7 @@ public class RoundingPatternTests : IDisposable
 }
 
 /// <summary>
-/// The mistake and its change built and run with javac, as FixFinder Learn runs a lesson: the mistake prints 12.0, and the
+/// The mistake and its change built and run with javac, as FixFinder runs a program: the mistake prints 12.0, and the
 /// change 12.35. Passed over, and said to be, where this computer cannot build Java.
 /// </summary>
 public class RoundingLiveTests(ITestOutputHelper output) : IDisposable

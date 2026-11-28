@@ -76,7 +76,7 @@ public class ResultKeptPatternTests : IDisposable
 }
 
 /// <summary>
-/// Each kept result run with the language itself, as FixFinder Learn runs a lesson, and the check's own change run the same
+/// Each kept result run with the language itself, as FixFinder runs a program, and the check's own change run the same
 /// way. A language this computer cannot run is passed over, and said to be.
 /// </summary>
 public class ResultKeptLiveTests(ITestOutputHelper output) : IDisposable

@@ -73,7 +73,7 @@ public class SharedListPatternTests : IDisposable
 }
 
 /// <summary>
-/// The mistake and its change run with each language's own toolchain, as FixFinder Learn runs a lesson: the mistake's second
+/// The mistake and its change run with each language's own toolchain, as FixFinder runs a program: the mistake's second
 /// name shows the change made through the first, and the change's copy keeps the values it had. A language this computer
 /// cannot run is passed over, and said to be.
 /// </summary>

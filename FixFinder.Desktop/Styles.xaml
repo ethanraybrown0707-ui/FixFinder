@@ -1,6 +1,6 @@
 <!--
-    The styles FixFinder and FixFinder Learn are both built from: the brand colours, the fonts, text, cards,
-    buttons, input boxes and code blocks. Their colours come from Themes\Light.xaml or Themes\Dark.xaml, whichever
+    The styles FixFinder's windows are built from: the brand colours, the fonts, text, cards, buttons, input
+    boxes and code blocks. Their colours come from Themes\Light.xaml or Themes\Dark.xaml, whichever
     Theme.Apply has merged in, and are asked for with DynamicResource so a change of theme repaints them at once.
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -16,20 +16,12 @@
     -->
     <Color x:Key="BrandBlue">#0E6CE9</Color>
     <Color x:Key="BrandLightBlue">#86B5F3</Color>
-    <Color x:Key="BrandPaleBlue">#3283EC</Color>
     <Color x:Key="BrandDarkBlue">#073069</Color>
 
     <LinearGradientBrush x:Key="BrandBlendBrush" StartPoint="0,0" EndPoint="1,0">
         <GradientStop Offset="0.00" Color="{StaticResource BrandDarkBlue}"/>
         <GradientStop Offset="0.50" Color="{StaticResource BrandBlue}"/>
         <GradientStop Offset="1.00" Color="{StaticResource BrandLightBlue}"/>
-    </LinearGradientBrush>
-
-    <!-- FixFinder Learn's tile, under its white book: as Assets\make-icon.py blends it, light blue to dark. -->
-    <LinearGradientBrush x:Key="LogoTileBrush" StartPoint="0,0" EndPoint="1,1" MappingMode="RelativeToBoundingBox">
-        <GradientStop Offset="0.00" Color="{StaticResource BrandPaleBlue}"/>
-        <GradientStop Offset="0.45" Color="{StaticResource BrandBlue}"/>
-        <GradientStop Offset="1.00" Color="{StaticResource BrandDarkBlue}"/>
     </LinearGradientBrush>
 
     <FontFamily x:Key="CodeFont">Cascadia Mono, Consolas</FontFamily>

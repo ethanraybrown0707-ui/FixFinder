@@ -1,11 +1,9 @@
-"""Draws the icons of FixFinder and FixFinder Learn. FixFinder's is its logo on a black rounded tile: the logo as it was
-given, in logo-given.png - a light-blue and a deep-blue stroke that meet at a peak, crossed low down by a mid-blue sweep.
-FixFinder Learn's is a white open book on a rounded tile blended from FixFinder's blue, lightened with white, to its blue
-darkened with black.
+"""Draws FixFinder's icon: its logo on a black rounded tile - the logo as it was given, in logo-given.png - a light-blue
+and a deep-blue stroke that meet at a peak, crossed low down by a mid-blue sweep.
 
     python make-icon.py
 
-Writes FixFinder.ico and logo.png beside itself, and FixFinderLearn.ico and logo.png into FixFinder.Learn's Assets.
+Writes FixFinder.ico and logo.png beside itself.
 Every size is made at its own scale rather than shrunk from one large icon, so the logo stays the logo at 16px: the small
 sizes get a larger logo. At every size the tile fills its square to the edge, as other programs' icons do - one with a
 margin of its own looks smaller than theirs beside it on the desktop.
@@ -19,14 +17,6 @@ SIZES = [16, 20, 24, 32, 40, 48, 64, 128, 256]
 PNG_FROM = 64
 SUPERSAMPLE = 8
 
-# The same stops as Styles.xaml's LogoTileBrush: FixFinder's blue with 15% white, the blue, and the blue with 55% black.
-BLEND = [
-    (0.00, (0x32, 0x83, 0xEC)),
-    (0.45, (0x0E, 0x6C, 0xE9)),
-    (1.00, (0x07, 0x30, 0x69)),
-]
-
-WHITE = (255, 255, 255, 255)
 BLACK = (0, 0, 0, 255)
 
 # FixFinder's logo as it was given: 1254 by 1254, its mark on black. Its black is not one black: 1,246,505 of its pixels
@@ -43,51 +33,10 @@ MOST_OPAQUE = 250
 # A pixel brighter than this in any channel is the mark's, for finding where the mark is in the picture.
 MARK_EDGE = 40
 
-# An open book seen from above: two pages leaning away from the spine, with a gap down it, on the same 100-unit square.
-LEFT_PAGE = [(17, 33), (47, 39), (47, 75), (17, 69)]
-RIGHT_PAGE = [(53, 39), (83, 33), (83, 69), (53, 75)]
-
-
-def blend_at(t):
-    for (start, low), (end, high) in zip(BLEND, BLEND[1:]):
-        if t <= end:
-            share = (t - start) / (end - start)
-            return tuple(round(a + (b - a) * share) for a, b in zip(low, high))
-    return BLEND[-1][1]
-
-
-def blended_tile(pixels):
-    gradient = Image.new("RGBA", (pixels, pixels))
-    shade = gradient.load()
-    for y in range(pixels):
-        for x in range(pixels):
-            shade[x, y] = blend_at((x + y) / (2 * (pixels - 1))) + (255,)
-    return gradient
-
-
-def black_tile(pixels):
-    return Image.new("RGBA", (pixels, pixels), BLACK)
-
-
-def draw_book(image, scale, size):
-    pen = ImageDraw.Draw(image)
-    for page in (LEFT_PAGE, RIGHT_PAGE):
-        pen.polygon([(x * scale, y * scale) for x, y in page], fill=WHITE)
-
-
-def draw_nothing(image, scale, size):
-    pass
-
-
-# Each tile and what is drawn on it: the book on its blend, and the black tile the logo's mark is set on.
-TILES = {"book": (blended_tile, draw_book), "black": (black_tile, draw_nothing)}
-
-
-def draw(size, tile_name):
-    """A rounded tile at a size, with what is drawn on it, drawn eight times as large and shrunk so its edges are smooth."""
+def black_tile(size):
+    """The black rounded tile at a size, drawn eight times as large and shrunk so its edges are smooth."""
     pixels = size * SUPERSAMPLE
     scale = pixels / 100
-    tile, mark = TILES[tile_name]
 
     corner = 22 if size <= 20 else 23 if size <= 40 else 24
 
@@ -95,9 +44,7 @@ def draw(size, tile_name):
     ImageDraw.Draw(mask).rounded_rectangle([0, 0, pixels - 1, pixels - 1], radius=corner * scale, fill=255)
 
     image = Image.new("RGBA", (pixels, pixels), (0, 0, 0, 0))
-    image.paste(tile(pixels), (0, 0), mask)
-
-    mark(image, scale, size)
+    image.paste(Image.new("RGBA", (pixels, pixels), BLACK), (0, 0), mask)
 
     return image.resize((size, size), Image.LANCZOS)
 
@@ -132,7 +79,7 @@ def mark_width(size):
 
 def draw_logo(size, mark):
     """FixFinder's icon at a size: the mark shrunk straight from the given picture onto the black tile, in its middle."""
-    icon = draw(size, "black")
+    icon = black_tile(size)
 
     width = round(size * mark_width(size))
     height = round(width * mark.height / mark.width)
@@ -197,4 +144,3 @@ if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
     mark = given_mark(here)
     build(here, "FixFinder.ico", lambda size: draw_logo(size, mark))
-    build(os.path.join(here, "..", "..", "FixFinder.Learn", "Assets"), "FixFinderLearn.ico", lambda size: draw(size, "book"))

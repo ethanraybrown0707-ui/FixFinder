@@ -135,7 +135,7 @@ public class ScalaLogicPatternTests : IDisposable
 }
 
 /// <summary>
-/// An Array printed as it is, run with Scala as FixFinder Learn runs a lesson, and the check's change run the same way: the
+/// An Array printed as it is, run with Scala as FixFinder runs a program, and the check's change run the same way: the
 /// mistake prints [I@ and a code, and the change the items. Passed over, and said to be, where this computer cannot run Scala.
 /// </summary>
 public class ScalaArrayPrintedLiveTests(ITestOutputHelper output) : IDisposable

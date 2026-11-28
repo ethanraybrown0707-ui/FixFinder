@@ -62,7 +62,7 @@ public class CaretAsPowerPatternTests : IDisposable
 }
 
 /// <summary>
-/// What ^ written as a power prints, run with each language's own toolchain the way FixFinder Learn runs a lesson, and what
+/// What ^ written as a power prints, run with each language's own toolchain the way FixFinder runs a program, and what
 /// the check's own change prints instead. A language this computer cannot run is passed over, and said to be.
 /// </summary>
 public class CaretAsPowerLiveTests(ITestOutputHelper output) : IDisposable

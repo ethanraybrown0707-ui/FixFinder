@@ -2,7 +2,8 @@ namespace FixFinder.Core.Teaching;
 
 /// <summary>
 /// What a piece of code does when it is run, as running it showed: what it printed, or the error it stopped with and the
-/// line it stopped on. Every behaviour a lesson states is one its tests saw happen, with the language's own toolchain.
+/// line it stopped on. The tests say what a mistake and its change do as one, and run them with the language's own
+/// toolchain to see it happen.
 /// </summary>
 public sealed record Behaviour
 {

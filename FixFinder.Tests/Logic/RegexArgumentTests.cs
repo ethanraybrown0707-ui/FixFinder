@@ -59,7 +59,7 @@ public class RegexArgumentPatternTests : IDisposable
 }
 
 /// <summary>
-/// The mistake and its change built and run with each language's own compiler, as FixFinder Learn runs a lesson: the mistake's
+/// The mistake and its change built and run with each language's own compiler, as FixFinder runs a program: the mistake's
 /// split gives no parts, and the change's two. A language this computer cannot build is passed over, and said to be.
 /// </summary>
 public class RegexArgumentLiveTests(ITestOutputHelper output) : IDisposable

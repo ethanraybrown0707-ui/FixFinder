@@ -35,9 +35,9 @@ public sealed record Observation
     public IReadOnlyList<string> Output { get; init; } = [];
 
     /// <summary>
-    /// Whether this is what a lesson says the code does: the same printing, or the same error - named by its type, its code
-    /// or the start of its message - on the same line, or on none when the lesson says the language names none, refused
-    /// before running or not, just as the lesson has it.
+    /// Whether this is what the code was expected to do: the same printing, or the same error - named by its type, its code
+    /// or the start of its message - on the same line, or on none when the language is expected to name none, refused
+    /// before running or not, just as expected.
     /// </summary>
     public bool Shows(Behaviour expected)
     {
@@ -61,7 +61,7 @@ public sealed record Observation
         return Error is null && Printed is { } printed && printed == (expected.Prints ?? "");
     }
 
-    /// <summary>What it did, said as a lesson says it: what it printed, or what it stopped with and where.</summary>
+    /// <summary>What it did, in words: what it printed, or what it stopped with and where.</summary>
     public string Said(string language) => this switch
     {
         { Ran: false } => WhyNotRun ?? "It could not be run on this computer.",
@@ -81,18 +81,18 @@ public sealed record Observation
 
 /// <summary>
 /// Runs a piece of code the way FixFinder runs a program - saved as its language needs, built if it has to be, then run -
-/// and says what it did. Lessons are checked with it, and FixFinder Learn runs examples and learners' own fixes with it.
+/// and says what it did. The tests run a mistake and its change with it, each with the language's own toolchain.
 /// </summary>
 public static class SnippetRunner
 {
-    /// <summary>How long a piece of code is given when nothing else is said: enough for any example a lesson has.</summary>
+    /// <summary>How long a piece of code is given when nothing else is said: enough for any of the small programs the tests run.</summary>
     public static readonly TimeSpan UsualTimeLimit = TimeSpan.FromSeconds(60);
 
-    /// <summary>How long code a lesson says never finishes is given before it is stopped - far longer than its fixed version takes.</summary>
+    /// <summary>How long code expected never to finish is given before it is stopped - far longer than its fixed version takes.</summary>
     public static readonly TimeSpan NeverFinishingTimeLimit = TimeSpan.FromSeconds(10);
 
-    /// <summary>The time a lesson's program is given: less when the lesson says it never finishes, so nobody waits a minute to see it.</summary>
-    public static TimeSpan TimeLimitFor(Behaviour lessonSays) => lessonSays.NeverFinishes ? NeverFinishingTimeLimit : UsualTimeLimit;
+    /// <summary>The time a piece of code is given: less when it is expected never to finish, so nobody waits a minute to see it.</summary>
+    public static TimeSpan TimeLimitFor(Behaviour expected) => expected.NeverFinishes ? NeverFinishingTimeLimit : UsualTimeLimit;
 
     public static async Task<Observation> RunAsync(CodeLanguage language, string code, TimeSpan? timeLimit = null, CancellationToken cancellationToken = default)
     {

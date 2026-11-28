@@ -92,7 +92,7 @@ public class LoopCopyPatternTests : IDisposable
 }
 
 /// <summary>
-/// Each loop mistake run with the language's own toolchain, as FixFinder Learn runs a lesson, and the check's own change run
+/// Each loop mistake run with the language's own toolchain, as FixFinder runs a program, and the check's own change run
 /// the same way. A language this computer cannot run is passed over, and said to be.
 /// </summary>
 public class LoopCopyLiveTests(ITestOutputHelper output) : IDisposable

@@ -52,7 +52,7 @@ public class LazyMapPatternTests : IDisposable
 }
 
 /// <summary>
-/// The mistake and its change run with each language's own toolchain, as FixFinder Learn runs a lesson: the mistake prints only
+/// The mistake and its change run with each language's own toolchain, as FixFinder runs a program: the mistake prints only
 /// done, and the change each mark before it. A language this computer cannot run is passed over, and said to be.
 /// </summary>
 public class LazyMapLiveTests(ITestOutputHelper output) : IDisposable

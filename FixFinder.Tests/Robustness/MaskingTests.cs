@@ -1,6 +1,5 @@
 using FixFinder.Core.Checking.Guides;
 using FixFinder.Core.LocalFixes;
-using FixFinder.Core.Teaching;
 
 namespace FixFinder.Tests;
 
@@ -18,20 +17,10 @@ namespace FixFinder.Tests;
 /// </remarks>
 public class MaskingTests
 {
-    /// <summary>Every program FixFinder holds, by a name that says where it is from: lessons, guides and captured programs.</summary>
+    /// <summary>Every program FixFinder holds, by a name that says where it is from: guides and captured programs.</summary>
     private static readonly Lazy<IReadOnlyDictionary<string, string>> EveryProgram = new(() =>
     {
         var programs = new Dictionary<string, string>(StringComparer.Ordinal);
-
-        foreach (var lesson in Lessons.All)
-            for (var number = 1; number <= lesson.Examples.Count; number++)
-            {
-                var example = lesson.Examples[number - 1];
-                var name = $"lesson {lesson.Language.Name} {lesson.Concept.Code} {number}";
-                programs[$"{name} broken"] = example.Broken;
-                programs[$"{name} put right"] = example.Fixed;
-                for (var wrong = 1; wrong <= example.WrongFixes.Count; wrong++) programs[$"{name} wrong fix {wrong}"] = example.WrongFixes[wrong - 1].Code;
-            }
 
         var guideNumber = 0;
         foreach (var guide in Guidebook.Every())

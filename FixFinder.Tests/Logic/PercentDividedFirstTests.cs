@@ -64,7 +64,7 @@ public class PercentDividedFirstPatternTests : IDisposable
 }
 
 /// <summary>
-/// Each percentage that divides first, run with the language's own toolchain the way FixFinder Learn runs a lesson, and the
+/// Each percentage that divides first, run with the language's own toolchain the way FixFinder runs a program, and the
 /// check's own change run the same way. A language this computer cannot run is passed over, and said to be.
 /// </summary>
 public class PercentDividedFirstLiveTests(ITestOutputHelper output) : IDisposable

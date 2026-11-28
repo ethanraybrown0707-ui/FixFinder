@@ -6,16 +6,15 @@ using FixFinder.Core.Checking;
 using FixFinder.Core.Checking.Guides;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Logic;
-using FixFinder.Core.Teaching;
 
 namespace FixFinder.Tests;
 
 /// <summary>
-/// Every program FixFinder holds - each lesson's broken and fixed example, each logic guide's example, and each program captured
-/// from a real run - read again after a change that leaves what it does as it was: saved with Windows line endings, with a
-/// byte-order mark, with spaces at the ends of its lines, with blank lines after its end, and with a comment line above its
-/// first. The logic checks find the same mistakes in it every time, on the same lines - each a line further down where a comment
-/// was put above it - and with Windows line endings and a byte-order mark, the same changes.
+/// Every program FixFinder holds - each logic guide's example, and each program captured from a real run - read again after a
+/// change that leaves what it does as it was: saved with Windows line endings, with a byte-order mark, with spaces at the ends
+/// of its lines, with blank lines after its end, and with a comment line above its first. The logic checks find the same
+/// mistakes in it every time, on the same lines - each a line further down where a comment was put above it - and with Windows
+/// line endings and a byte-order mark, the same changes.
 /// </summary>
 public class HarmlessChangeTests : IDisposable
 {
@@ -34,17 +33,6 @@ public class HarmlessChangeTests : IDisposable
     /// <summary>Every program, by a name that says where it is from, with the kind of file it is saved as and its text.</summary>
     internal static IEnumerable<(string Name, string Extension, string Code)> Programs()
     {
-        foreach (var lesson in Lessons.All)
-        {
-            for (var number = 0; number < lesson.Examples.Count; number++)
-            {
-                var example = lesson.Examples[number];
-                var extension = lesson.Language.Extensions[0];
-                yield return ($"lesson {lesson.Language.Name} {lesson.Concept.Code} {number + 1} broken", extension, example.Broken);
-                yield return ($"lesson {lesson.Language.Name} {lesson.Concept.Code} {number + 1} fixed", extension, example.Fixed);
-            }
-        }
-
         foreach (var row in GuideExampleTests.EveryCheckOnItsOwnGuidesExample())
         {
             var (checkId, extension) = ((string)row[0], (string)row[1]);

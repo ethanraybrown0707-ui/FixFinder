@@ -75,7 +75,7 @@ public class RootPowerPatternTests : IDisposable
 
 /// <summary>
 /// What a root written as a power of one over a number prints, run with each language's own toolchain the way FixFinder
-/// Learn runs a lesson, and what the check's own change prints instead. A language this computer cannot run is passed over,
+/// runs a program, and what the check's own change prints instead. A language this computer cannot run is passed over,
 /// and said to be.
 /// </summary>
 public class RootPowerLiveTests(ITestOutputHelper output) : IDisposable
@@ -133,7 +133,7 @@ public class RootPowerLiveTests(ITestOutputHelper output) : IDisposable
 }
 
 /// <summary>
-/// A power of one whole number over another, run with each language's own toolchain the way FixFinder Learn runs a lesson,
+/// A power of one whole number over another, run with each language's own toolchain the way FixFinder runs a program,
 /// and the check's own change run the same way. A language this computer cannot run is passed over, and said to be.
 /// </summary>
 public class PowWholeNumberFractionLiveTests(ITestOutputHelper output)

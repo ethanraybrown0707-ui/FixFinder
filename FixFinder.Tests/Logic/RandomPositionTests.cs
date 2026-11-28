@@ -44,7 +44,7 @@ public class RandomPositionPatternTests : IDisposable
 }
 
 /// <summary>
-/// The mistake and its change run with Python, as FixFinder Learn runs a lesson, drawing a thousand positions: the mistake stops
+/// The mistake and its change run with Python, as FixFinder runs a program, drawing a thousand positions: the mistake stops
 /// with IndexError when it draws len(marks) - which a thousand draws all but always do - and the change never fails. Passed
 /// over, and said to be, where this computer cannot run Python.
 /// </summary>

@@ -350,19 +350,12 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public bool HasFixChanges => FixChanges.Count > 0;
 
-    /// <summary>The idea this finding is an example of, which FixFinder Learn teaches.</summary>
+    /// <summary>The idea this finding is an example of.</summary>
     public Concept Concept { get; } = ConceptMap.Of(finding);
 
     public string IdeaTitle => $"The idea behind it: {Concept.Title}";
 
     public string Idea => Concept.Idea;
-
-    /// <summary>The code that opens this problem in FixFinder Learn, or null for a file of no language it teaches.</summary>
-    public ProblemCode? ProblemCode { get; } = ProblemStore.CodeFor(finding);
-
-    public bool HasProblemCode => ProblemCode is not null;
-
-    public string ProblemCodeText => ProblemCode?.Text ?? "";
 
     /// <summary>The card as text, in the order the card reads: summary, cause, most likely fix, the change, why, then learn more.</summary>
     public string AsText()
@@ -443,7 +436,7 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
             lines.AddRange(Words.Select(word => $"    {word.Word} - {word.Meaning}"));
         }
 
-        lines.Add($"The idea behind it: {Concept.Title}" + (HasProblemCode ? $" - problem code {ProblemCodeText}, for FixFinder Learn" : ""));
+        lines.Add($"The idea behind it: {Concept.Title}");
         lines.Add($"Next time: {NextTime}");
 
         return string.Join(Environment.NewLine, lines);

@@ -47,9 +47,6 @@ public partial class MainWindow : Window
     /// <summary>What was found the last few times, so a report can say whether things are getting better.</summary>
     private readonly CheckHistory _history = CheckHistory.Load();
 
-    /// <summary>What each problem found said, kept on this computer for FixFinder Learn to show beside the lesson.</summary>
-    private readonly ProblemStore _problems = new();
-
     /// <summary>
     /// The last check of each program in this session, findings and all - the only place a fixed finding can be named from,
     /// as the history on disk keeps no more than a fingerprint of each.
@@ -282,7 +279,6 @@ public partial class MainWindow : Window
                     var record = CheckRecord.Of(row.Program.Entry, report.Findings, ran: report.Run is not null);
                     _history.Record(record);
                     _checkedThisSession[row.Program.Entry] = (record, report.Findings);
-                    KeepForLearn(report.Findings);
                 }
             }
             catch (OperationCanceledException)
@@ -781,23 +777,9 @@ public partial class MainWindow : Window
 
         CopyReportButton.IsEnabled = report.Findings.Count > 0;
         KeepForSaving(report, onlyRead: false);
-        KeepForLearn(report.Findings);
 
         // From now on every save of a program chosen as a file is read again at once - no box to tick for it.
         if (!_pasting && _launch is { Ok: true }) WatchForSaves();
-    }
-
-    /// <summary>
-    /// Keeps what each finding said, with its line of code, on this computer under the finding's problem code - so pasting
-    /// the code into FixFinder Learn shows the reader their own mistake beside the lesson. Done away from the window, as it
-    /// reads each finding's file for its line.
-    /// </summary>
-    private void KeepForLearn(IReadOnlyList<Finding> findings)
-    {
-        if (findings.Count == 0) return;
-
-        var foundAt = DateTimeOffset.Now;
-        _ = Task.Run(() => _problems.Keep(findings, foundAt));
     }
 
     private void OnFindingsChanged(IReadOnlyList<Finding> findings) => Dispatcher.BeginInvoke(() => ShowFindings(findings));
@@ -1186,7 +1168,6 @@ public partial class MainWindow : Window
         ReportSubtitleText.Text = $"{Path.GetFileName(_chosenPath ?? "")}  ·  read again as saved at {DateTime.Now:HH:mm:ss}  ·  not compiled or run";
         CopyReportButton.IsEnabled = report.Findings.Count > 0;
         KeepForSaving(report, onlyRead: true);
-        KeepForLearn(report.Findings);
 
         _logger?.WriteSection("Checked on save");
         foreach (var row in _findings) _logger?.Write(row.AsText() + Environment.NewLine);
@@ -1336,30 +1317,6 @@ public partial class MainWindow : Window
     private void ToggleCorrection_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is FindingRow row) row.CorrectionShown = !row.CorrectionShown;
-    }
-
-    private void CopyProblemCode_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.Tag is FindingRow { HasProblemCode: true } row && Copy(row.ProblemCodeText) && sender is Button button)
-            Flash(button, "Copied");
-    }
-
-    /// <summary>
-    /// Opens a problem in FixFinder Learn. Its code is copied as well, so it can be pasted there by hand if FixFinder Learn
-    /// cannot be started from here.
-    /// </summary>
-    private void OpenInLearn_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.Tag is not FindingRow { HasProblemCode: true } row) return;
-
-        // Kept now as well as when the check finished, so the newest wording is the one FixFinder Learn shows.
-        _problems.Keep([row.Finding], DateTimeOffset.Now);
-
-        if (LearnLauncher.Open(row.ProblemCodeText) is { } problem)
-        {
-            Copy(row.ProblemCodeText);
-            MessageBox.Show(this, problem, "FixFinder", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
     }
 
     private void CopyExample_Click(object sender, RoutedEventArgs e)

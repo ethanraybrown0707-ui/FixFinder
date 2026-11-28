@@ -364,8 +364,6 @@ public sealed record ReportPage
             page.Append("<h4>Read more about this</h4>\n<p>").Append(Link(reading, readingUrl)).Append("</p>\n");
         if (FindingText.Weakness(finding) is { } weakness) page.Append("<p>").Append(Link(weakness, finding.Weakness!.Url)).Append("</p>\n");
 
-        if (Teaching.ProblemStore.CodeFor(finding) is { } code)
-            page.Append("<p class=\"code\">Problem code <code>").Append(Text(code.Text)).Append("</code>, for FixFinder Learn</p>\n");
         if (further.Reproduce is { } reproduce) page.Append("<p><strong>To see it happen:</strong> ").Append(Prose(reproduce)).Append("</p>\n");
         page.Append("<p><strong>Next time:</strong> ").Append(Prose(further.NextTime)).Append("</p>\n");
 

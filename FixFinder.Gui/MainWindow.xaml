@@ -34,8 +34,8 @@
 
         <!--
             A finding as a card. What is wrong, why it matters and how to fix it come first, in words; the corrected code
-            waits behind a button, so the fix can be tried before it is seen; the idea behind the mistake and the code that
-            opens it in FixFinder Learn follow; and the evidence behind the finding waits under More detail.
+            waits behind a button, so the fix can be tried before it is seen; the idea behind the mistake and the habit that
+            stops it follow; and the evidence behind the finding waits under More detail.
         -->
         <DataTemplate x:Key="FindingTemplate" DataType="{x:Type local:FindingRow}">
             <Border x:Name="Card" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
@@ -365,7 +365,7 @@
                             </ItemsControl>
                         </StackPanel>
 
-                        <!-- The idea behind the mistake, and the code that opens it in FixFinder Learn. -->
+                        <!-- The idea behind the mistake, and what to do next time. -->
                         <Border Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource SuggestionBorderBrush}"
                                 BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,14,0,0"
                                 AutomationProperties.AutomationId="FindingIdea">
@@ -377,19 +377,6 @@
                                     <Run Text="Next time: " FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"/>
                                     <Run Text="{Binding NextTime, Mode=OneWay}"/>
                                 </TextBlock>
-                                <WrapPanel Margin="0,10,0,0" Visibility="{Binding HasProblemCode, Converter={StaticResource Visible}}">
-                                    <TextBlock Text="Problem code" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"
-                                               Foreground="{DynamicResource SecondaryTextBrush}"/>
-                                    <TextBox Text="{Binding ProblemCodeText, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
-                                             Background="Transparent" Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"
-                                             FontFamily="{StaticResource CodeFont}" FontSize="12.5" Margin="0,0,10,0"
-                                             AutomationProperties.AutomationId="FindingProblemCode" AutomationProperties.Name="Problem code"/>
-                                    <Button Content="Copy" Style="{StaticResource SmallButton}" Tag="{Binding}" Click="CopyProblemCode_Click"
-                                            ToolTip="Copies the code, to paste into FixFinder Learn."/>
-                                    <Button Content="Learn about this" Style="{StaticResource SmallButton}" Tag="{Binding}" Click="OpenInLearn_Click"
-                                            AutomationProperties.AutomationId="FindingOpenInLearn"
-                                            ToolTip="Opens this problem in FixFinder Learn: the idea behind it, examples to run, a fix to try and questions."/>
-                                </WrapPanel>
                             </StackPanel>
                         </Border>
 

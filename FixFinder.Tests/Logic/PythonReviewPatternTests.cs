@@ -62,7 +62,7 @@ public class PythonReviewPatternTests : IDisposable
     public void MainThatIsCalledIsLeftAlone(string code) => Assert.Empty(Scan(code, "logic-python-main-never-called"));
 }
 
-/// <summary>Both mistakes, run with Python the way FixFinder Learn runs a lesson, and the checks' own changes run the same way.</summary>
+/// <summary>Both mistakes, run with Python the way FixFinder runs a program, and the checks' own changes run the same way.</summary>
 public class PythonReviewLiveTests(ITestOutputHelper output)
 {
     [Fact]

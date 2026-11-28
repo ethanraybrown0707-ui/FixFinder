@@ -15,7 +15,7 @@ namespace FixFinder.Desktop;
 /// Every colour lives in one of two dictionaries with the same keys in both, and changing theme replaces the one that
 /// is merged in. That only reaches the window because the XAML asks for brushes with DynamicResource: a StaticResource
 /// is looked up once when the control is built and would keep the colour it was born with. The dictionaries live in this
-/// library, so FixFinder and FixFinder Learn are painted from the same ones.
+/// library, so every one of FixFinder's windows is painted from the same ones.
 /// </remarks>
 public static class Theme
 {

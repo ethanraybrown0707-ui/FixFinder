@@ -7,8 +7,8 @@ using Xunit.Abstractions;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// Mistakes eight languages run without a word, each run with the language's own toolchain the way FixFinder Learn runs a
-/// lesson, and the check's own change run the same way: the mistake prints what it was seen to, and the change what was
+/// Mistakes eight languages run without a word, each run with the language's own toolchain the way FixFinder runs a
+/// program, and the check's own change run the same way: the mistake prints what it was seen to, and the change what was
 /// meant. A language this computer cannot run is passed over, and said to be.
 /// </summary>
 public class SilentMistakeLiveTests(ITestOutputHelper output)

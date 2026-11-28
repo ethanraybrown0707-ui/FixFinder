@@ -23,7 +23,7 @@ public sealed record CheckRecord(DateTimeOffset When, string File, int Errors, i
     public bool Ran { get; init; }
 
     /// <summary>
-    /// The idea behind each finding, as FixFinder Learn names it - OFFBYONE, DIVZERO - so the kinds of mistake a person makes
+    /// The idea behind each finding, by its concept's code - OFFBYONE, DIVZERO - so the kinds of mistake a person makes
     /// in more than one program can be told; never the finding or its code. Empty in a record from before they were kept.
     /// </summary>
     public IReadOnlyList<string> Concepts { get; init; } = [];

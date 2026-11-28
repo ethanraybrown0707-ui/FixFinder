@@ -42,7 +42,7 @@ public class SpreadArgumentPatternTests : IDisposable
 }
 
 /// <summary>
-/// The mistake and its change run with Node.js, as FixFinder Learn runs a lesson: the mistake prints NaN, and the change the
+/// The mistake and its change run with Node.js, as FixFinder runs a program: the mistake prints NaN, and the change the
 /// highest mark. Passed over, and said to be, where this computer cannot run them.
 /// </summary>
 public class SpreadArgumentLiveTests(ITestOutputHelper output) : IDisposable

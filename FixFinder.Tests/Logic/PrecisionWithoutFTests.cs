@@ -53,7 +53,7 @@ public class PrecisionWithoutFPatternTests : IDisposable
     public void TextOrAPrecisionThatSaysWhatItMeansIsLeftAlone(string code) => Assert.Empty(Scan(code));
 }
 
-/// <summary>The mistake and its change run with Python, as FixFinder Learn runs a lesson.</summary>
+/// <summary>The mistake and its change run with Python, as FixFinder runs a program.</summary>
 public class PrecisionWithoutFLiveTests(ITestOutputHelper output)
 {
     [Fact]

@@ -52,7 +52,7 @@ public class SearchConditionPatternTests : IDisposable
 }
 
 /// <summary>
-/// The mistake and its change run with each language's own toolchain, as FixFinder Learn runs a lesson: the mistake takes the
+/// The mistake and its change run with each language's own toolchain, as FixFinder runs a program: the mistake takes the
 /// match at the start for none, and the change finds it. A language this computer cannot run is passed over, and said to be.
 /// </summary>
 public class SearchConditionLiveTests(ITestOutputHelper output) : IDisposable

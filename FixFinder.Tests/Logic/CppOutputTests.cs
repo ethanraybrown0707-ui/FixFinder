@@ -66,7 +66,7 @@ public class CppOutputPatternTests : IDisposable
 }
 
 /// <summary>
-/// The mistake and its change built and run with g++, as FixFinder Learn runs a lesson: the mistake writes an address, and the
+/// The mistake and its change built and run with g++, as FixFinder runs a program: the mistake writes an address, and the
 /// change the items. Passed over, and said to be, where this computer cannot build C++.
 /// </summary>
 public class CppOutputLiveTests(ITestOutputHelper output) : IDisposable

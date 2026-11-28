@@ -8,7 +8,7 @@ using Xunit.Abstractions;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// Code no run can reach, each run with the language's own toolchain the way FixFinder Learn runs a lesson: the mistake shows
+/// Code no run can reach, each run with the language's own toolchain the way FixFinder runs a program: the mistake shows
 /// that the code never ran - a score of 75 got C, a loop counted 0, the general handler took the error - and the check's change,
 /// run the same way, reaches it. Code with no change - after return, a second case, a function defined twice - is shown never
 /// running. A language this computer cannot run, or a program Windows refused to start, is passed over, and said to be.

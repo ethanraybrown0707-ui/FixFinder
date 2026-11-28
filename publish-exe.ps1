@@ -1,21 +1,17 @@
 <#
 .SYNOPSIS
-  Publishes FixFinder and FixFinder Learn as single self-contained exes - FixFinder.exe and
-  FixFinderLearn.exe, side by side - and signs them.
+  Publishes FixFinder as a single self-contained exe - FixFinder.exe - and signs it.
 
 .DESCRIPTION
-  Produces one file per application with the .NET runtime and WPF bundled inside, so each runs on
-  a machine with no .NET installed. That is what makes it worth doing at all - a framework-dependent
+  Produces one file with the .NET runtime and WPF bundled inside, so it runs on a machine with no
+  .NET installed. That is what makes it worth doing at all - a framework-dependent
   exe is a few hundred KB but is just a launcher for a runtime that has to already be there, which
   is no more portable than the DLL it replaces.
-
-  FixFinder Learn goes in the same folder because that is where FixFinder looks for it: a finding's
-  Learn about this button starts FixFinderLearn.exe from beside FixFinder.exe.
 
   Compression is on. It roughly halves the output at the cost of a slower first start, which is
   the right trade for a tool launched by hand rather than in a loop.
 
-  Each exe is Authenticode-signed with the same local certificate the Debug DLLs use. Read the
+  The exe is Authenticode-signed with the same local certificate the Debug DLLs use. Read the
   warning printed at the end before assuming that makes them runnable everywhere: local trust
   satisfies an Application Control policy, and it does not satisfy Smart App Control, which
   judges by reputation rather than by signature.
@@ -26,7 +22,7 @@
   certificate in the personal store - so a fresh clone works without editing anything.
 
 .PARAMETER Version
-  The release being built, for example 2.4.1: the exes' file version, and the version a report
+  The release being built, for example 2.4.1: the exe's file version, and the version a report
   saved as a web page names at its foot, with the commit after it. Left out, the build is numbered
   1.0.0, as .NET numbers a build nobody has given a version.
 #>
@@ -51,11 +47,10 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $output = Join-Path $root "publish"
 
-# Each application: its project, the exe dotnet names after its assembly, and the name a person sees. FixFinder.Gui is
+# The application: its project, the exe dotnet names after its assembly, and the name a person sees. FixFinder.Gui is
 # the assembly, but the thing a person double-clicks should just be FixFinder.
 $applications = @(
-    @{ Project = "FixFinder.Gui\FixFinder.Gui.csproj"; Built = "FixFinder.Gui.exe"; Final = "FixFinder.exe" },
-    @{ Project = "FixFinder.Learn\FixFinder.Learn.csproj"; Built = "FixFinder.Learn.exe"; Final = "FixFinderLearn.exe" }
+    @{ Project = "FixFinder.Gui\FixFinder.Gui.csproj"; Built = "FixFinder.Gui.exe"; Final = "FixFinder.exe" }
 )
 
 foreach ($application in $applications) {
@@ -64,7 +59,7 @@ foreach ($application in $applications) {
 }
 
 Write-Host ""
-Write-Host "Publishing FixFinder and FixFinder Learn ($Configuration, $Runtime, $(if ($FrameworkDependent) { 'framework-dependent' } else { 'self-contained' }))..."
+Write-Host "Publishing FixFinder ($Configuration, $Runtime, $(if ($FrameworkDependent) { 'framework-dependent' } else { 'self-contained' }))..."
 Write-Host ""
 
 # Everything except Logs, which is not ours to throw away: it is the record of what FixFinder

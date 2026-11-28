@@ -57,7 +57,7 @@ public class NumbersJoinedPatternTests : IDisposable
 }
 
 /// <summary>
-/// The mistake and its change run with each language's own toolchain, as FixFinder Learn runs a lesson: the mistake prints the
+/// The mistake and its change run with each language's own toolchain, as FixFinder runs a program: the mistake prints the
 /// numbers side by side, and the change their sum. A language this computer cannot run is passed over, and said to be.
 /// </summary>
 public class NumbersJoinedLiveTests(ITestOutputHelper output) : IDisposable

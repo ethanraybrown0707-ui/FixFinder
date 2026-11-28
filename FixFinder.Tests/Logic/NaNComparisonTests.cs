@@ -68,7 +68,7 @@ public class NaNComparisonPatternTests : IDisposable
 }
 
 /// <summary>
-/// The mistake and its change run with each language's own toolchain, as FixFinder Learn runs a lesson: for a value that is NaN,
+/// The mistake and its change run with each language's own toolchain, as FixFinder runs a program: for a value that is NaN,
 /// the mistake takes the branch for a number, and the change the one for NaN. A language this computer cannot run is passed
 /// over, and said to be.
 /// </summary>

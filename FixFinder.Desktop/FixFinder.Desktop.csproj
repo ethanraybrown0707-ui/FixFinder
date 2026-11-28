@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    What FixFinder's two windowed programs share - FixFinder itself and FixFinder Learn - so they look and behave as one:
-    the light and dark colours, the styles every window is built from, the way a window fits itself to the screen it
-    opens on, and the text that shows code in the code font. Nothing here checks a program; that is FixFinder.Core's.
+    What FixFinder's windows are built from, so they look and behave as one: the light and dark colours, the styles
+    every window is built from, the way a window fits itself to the screen it opens on, and the text that shows code in
+    the code font. Nothing here checks a program; that is FixFinder.Core's.
   -->
 
   <PropertyGroup>

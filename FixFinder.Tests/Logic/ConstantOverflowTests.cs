@@ -57,7 +57,7 @@ public class ConstantOverflowPatternTests : IDisposable
 }
 
 /// <summary>
-/// The mistake and its change built and run with each language's own compiler, as FixFinder Learn runs a lesson: the mistake
+/// The mistake and its change built and run with each language's own compiler, as FixFinder runs a program: the mistake
 /// prints the wrapped number, and the change the right one. A language this computer cannot build is passed over, and said to be.
 /// </summary>
 public class ConstantOverflowLiveTests(ITestOutputHelper output) : IDisposable

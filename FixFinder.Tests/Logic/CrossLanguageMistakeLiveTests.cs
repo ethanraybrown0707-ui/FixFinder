@@ -8,8 +8,8 @@ using Xunit.Abstractions;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// Mistakes made the same way in many languages, each run with the language's own toolchain the way FixFinder Learn runs a
-/// lesson, and the check's own change run the same way: the mistake prints what it was seen to, and the change what was meant.
+/// Mistakes made the same way in many languages, each run with the language's own toolchain the way FixFinder runs a
+/// program, and the check's own change run the same way: the mistake prints what it was seen to, and the change what was meant.
 /// A language this computer cannot run - or a program Windows refused to start - is passed over, and said to be.
 /// </summary>
 public class CrossLanguageMistakeLiveTests(ITestOutputHelper output)

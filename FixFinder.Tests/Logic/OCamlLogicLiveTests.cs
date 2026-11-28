@@ -7,7 +7,7 @@ using Xunit.Abstractions;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// OCaml's logic checks, each run the way FixFinder Learn runs a lesson - compiled by ocamlc and run by ocamlrun: the mistake
+/// OCaml's logic checks, each run the way FixFinder runs a program - compiled by ocamlc and run by ocamlrun: the mistake
 /// compiles with no warning and prints the wrong answer, and the check's change prints the right one. This computer cannot run
 /// OCaml, so these run on GitHub's runners, in the OCaml job; here they are passed over, and said to be.
 /// </summary>
